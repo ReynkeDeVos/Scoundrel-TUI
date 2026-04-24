@@ -1,0 +1,30 @@
+[project]
+name = "scoundrel-tui"
+version = "0.1.0"
+description = "A polished terminal version of Scoundrel."
+authors = [
+    { name = "Renke Brixel", email = "renke.brixel@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "pillow>=12.2.0",
+    "rich>=15.0.0",
+    "textual>=8.2.4",
+    "textual-image>=0.12.0",
+]
+
+[project.scripts]
+scoundrel = "scoundrel_tui.app:main"
+scoundrel-tui = "scoundrel_tui.app:main"
+
+[build-system]
+requires = ["uv_build>=0.11.7,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
