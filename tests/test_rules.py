@@ -1,6 +1,7 @@
 from PIL import Image
 from rich.console import Console
 from textual.geometry import Size
+from textual_image.renderable import tgp
 
 from scoundrel_tui.app import (
     Card,
@@ -16,6 +17,7 @@ from scoundrel_tui.app import (
     Suit,
     WEAPON_IMAGES,
     asset_for,
+    cached_terminal_image,
     fitted_image,
 )
 
@@ -132,6 +134,32 @@ def test_scaled_item_art_keeps_full_card_canvas() -> None:
         assert image.size == (378, 576)
     with Image.open(scaled) as image:
         assert image.size == (378, 576)
+
+
+def test_terminal_images_are_reused_between_room_renders(monkeypatch) -> None:
+    monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "kitty")
+    cached_terminal_image.cache_clear()
+    calls = []
+    monkeypatch.setattr(tgp, "_send_tgp_message", lambda **kwargs: calls.append(kwargs))
+    app = ScoundrelApp()
+    app._size = Size(220, 60)
+    app.state = GameState(
+        room=[
+            Card(Suit.CLUBS, 8),
+            Card(Suit.SPADES, 13),
+            Card(Suit.DIAMONDS, 5),
+            Card(Suit.HEARTS, 6),
+        ],
+    )
+    console = Console(width=220, record=True)
+
+    console.print(app.render_room())
+    first_render_calls = len(calls)
+    console.print(app.render_room())
+    second_render_calls = len(calls) - first_render_calls
+
+    assert first_render_calls > 0
+    assert second_render_calls == 0
 
 
 def test_pixel_art_assets_are_mapped_by_value() -> None:

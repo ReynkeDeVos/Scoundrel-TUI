@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import random
 import os
+import random
 from dataclasses import dataclass, field
 from enum import Enum
+from functools import lru_cache
 from pathlib import Path
 
 from PIL import Image, ImageOps
@@ -25,6 +26,8 @@ ROOT = Path(__file__).resolve().parents[2]
 ASSET_ROOT = ROOT / "assets" / "scoundrel"
 MAX_HEALTH = 20
 ART_CACHE = ROOT / ".cache" / "scoundrel-art"
+DEFAULT_IMAGE_CELL_WIDTH_PX = 10
+DEFAULT_IMAGE_CELL_HEIGHT_PX = 20
 STORY_IMAGES = {
     "welcome": ASSET_ROOT / "story" / "entry" / "trow_story_06-Temple_in_the_Deep.webp",
     "death": ASSET_ROOT / "story" / "death" / "trow_story_02-The_Fall.jpg",
@@ -310,18 +313,40 @@ def image_mode() -> str:
     return "kitty"
 
 
+def image_cell_pixels() -> tuple[int, int]:
+    width = env_int("SCOUNDREL_IMAGE_CELL_WIDTH_PX", DEFAULT_IMAGE_CELL_WIDTH_PX)
+    height = env_int("SCOUNDREL_IMAGE_CELL_HEIGHT_PX", DEFAULT_IMAGE_CELL_HEIGHT_PX)
+    return max(4, width), max(8, height)
+
+
+def env_int(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, default))
+    except ValueError:
+        return default
+
+
 def fitted_image(path: str, width_px: int, height_px: int, content_scale: float = 1.0) -> Path:
     source = Path(path)
-    source_id = str(source.relative_to(ROOT) if source.is_relative_to(ROOT) else source).replace("/", "__")
+    source_mtime_ns = source.stat().st_mtime_ns
     scale_id = int(content_scale * 100)
+    return _fitted_image_cached(str(source), width_px, height_px, scale_id, source_mtime_ns)
+
+
+@lru_cache(maxsize=512)
+def _fitted_image_cached(path: str, width_px: int, height_px: int, scale_id: int, source_mtime_ns: int) -> Path:
+    source = Path(path)
+    source_id = str(source.relative_to(ROOT) if source.is_relative_to(ROOT) else source).replace("/", "__")
     target = ART_CACHE / f"{source_id}-{width_px}x{height_px}-s{scale_id}.png"
     if target.exists() and target.stat().st_mtime >= source.stat().st_mtime:
         return target
     target.parent.mkdir(parents=True, exist_ok=True)
-    image = Image.open(source).convert("RGBA")
-    fit_width = max(1, int(width_px * content_scale))
-    fit_height = max(1, int(height_px * content_scale))
-    fitted = ImageOps.contain(image, (fit_width, fit_height), Image.Resampling.LANCZOS)
+    content_scale = scale_id / 100
+    with Image.open(source) as image:
+        image = image.convert("RGBA")
+        fit_width = max(1, int(width_px * content_scale))
+        fit_height = max(1, int(height_px * content_scale))
+        fitted = ImageOps.contain(image, (fit_width, fit_height), Image.Resampling.LANCZOS)
     canvas = Image.new("RGBA", (width_px, height_px), (0, 0, 0, 0))
     canvas.alpha_composite(fitted, ((width_px - fitted.width) // 2, (height_px - fitted.height) // 2))
     canvas.save(target)
@@ -331,8 +356,16 @@ def fitted_image(path: str, width_px: int, height_px: int, content_scale: float 
 def card_image(path: Path | None, width: int = 18, height: int = 11, content_scale: float = 1.0) -> RenderableType:
     if path is None or image_mode() == "off":
         return Text("")
-    fitted = fitted_image(str(path), width * 18, height * 36, content_scale)
+    cell_width_px, cell_height_px = image_cell_pixels()
+    fitted = fitted_image(str(path), width * cell_width_px, height * cell_height_px, content_scale)
     mode = image_mode()
+    fitted_mtime_ns = fitted.stat().st_mtime_ns
+    return cached_terminal_image(str(fitted), mode, width, height, fitted_mtime_ns)
+
+
+@lru_cache(maxsize=512)
+def cached_terminal_image(path: str, mode: str, width: int, height: int, fitted_mtime_ns: int) -> RenderableType:
+    fitted = Path(path)
     if mode in {"kitty", "tgp"}:
         return tgp.Image(fitted, width=width, height=height)
     if mode == "sixel":
@@ -341,10 +374,13 @@ def card_image(path: Path | None, width: int = 18, height: int = 11, content_sca
 
 
 def transparent_image(width: int, height: int) -> Path:
-    target = ART_CACHE / f"transparent-{width}x{height}.png"
+    cell_width_px, cell_height_px = image_cell_pixels()
+    pixel_width = max(1, width * cell_width_px)
+    pixel_height = max(1, height * cell_height_px)
+    target = ART_CACHE / f"transparent-{pixel_width}x{pixel_height}.png"
     if not target.exists():
         target.parent.mkdir(parents=True, exist_ok=True)
-        Image.new("RGBA", (max(1, width * 18), max(1, height * 36)), (0, 0, 0, 0)).save(target)
+        Image.new("RGBA", (pixel_width, pixel_height), (0, 0, 0, 0)).save(target)
     return target
 
 
@@ -520,7 +556,7 @@ class ScoundrelApp(App[None]):
             if cards[index] is not None:
                 self.state.selected_slot = index
                 break
-        self.refresh_board()
+        self.refresh_selection()
 
     def action_take_selected(self) -> None:
         if self.overlay == "welcome":
@@ -578,7 +614,7 @@ class ScoundrelApp(App[None]):
         if event.key == "escape" and self.state.pending_monster_slot is not None:
             self.state.pending_monster_slot = None
             self.state.log.append("You steady yourself and reconsider the room.")
-            self.refresh_board()
+            self.refresh_selection()
 
     def refresh_board(self) -> None:
         if self.state.game_over:
@@ -589,6 +625,12 @@ class ScoundrelApp(App[None]):
         self.query_one("#prompt", Static).update(self.render_prompt())
         self.query_one("#log", Static).update(self.render_log())
         self.query_one("#dungeon", Static).update(self.render_dungeon())
+        self.refresh_overlay()
+
+    def refresh_selection(self) -> None:
+        self.query_one("#health", Static).update(self.render_health())
+        self.query_one("#room", Static).update(self.render_room())
+        self.query_one("#prompt", Static).update(self.render_prompt())
         self.refresh_overlay()
 
     def refresh_overlay(self) -> None:
