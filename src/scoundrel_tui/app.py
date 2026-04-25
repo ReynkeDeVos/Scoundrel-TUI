@@ -649,11 +649,9 @@ class ScoundrelApp(App[None]):
         return Panel(body, border_style=border, box=box.SQUARE)
 
     def render_status(self) -> RenderableType:
-        table = Table.grid(expand=True, padding=(0, 1))
-        table.add_column(ratio=4, no_wrap=True)
-        table.add_column(ratio=3, no_wrap=True)
-        table.add_column(ratio=3, no_wrap=True)
-        table.add_column(ratio=3, no_wrap=True)
+        table = Table.grid(expand=False, padding=(0, 4))
+        for _ in range(4):
+            table.add_column(no_wrap=True)
         weapon = self.state.weapon.title if self.state.weapon else "Bare hands"
         condition = self.weapon_condition()
         remaining = len(self.state.dungeon) + sum(card is not None for card in self.state.room)
