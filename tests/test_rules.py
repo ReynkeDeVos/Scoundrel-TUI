@@ -22,6 +22,7 @@ from scoundrel_tui.app import (
     asset_for,
     cached_terminal_image,
     fitted_image,
+    is_pixel_asset,
 )
 
 
@@ -137,6 +138,18 @@ def test_scaled_item_art_keeps_full_card_canvas() -> None:
         assert image.size == (378, 576)
     with Image.open(scaled) as image:
         assert image.size == (378, 576)
+
+
+def test_pixel_art_scaling_uses_sharp_cache_variant() -> None:
+    pixel_path = PIXEL_WEAPON_IMAGES[2]
+
+    assert is_pixel_asset(pixel_path)
+    sharp = fitted_image(str(pixel_path), 120, 120, sharp=True)
+    smooth = fitted_image(str(pixel_path), 120, 120, sharp=False)
+
+    assert sharp != smooth
+    assert "nearest" in sharp.name
+    assert "smooth" in smooth.name
 
 
 def test_terminal_images_are_reused_between_room_renders(monkeypatch) -> None:

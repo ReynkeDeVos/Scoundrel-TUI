@@ -121,27 +121,30 @@ def env_int(name: str, default: int) -> int:
         return default
 
 
-def fitted_image(path: str, width_px: int, height_px: int, content_scale: float = 1.0) -> Path:
+def fitted_image(path: str, width_px: int, height_px: int, content_scale: float = 1.0, *, sharp: bool = False) -> Path:
     source = Path(path)
     source_mtime_ns = source.stat().st_mtime_ns
     scale_id = int(content_scale * 100)
-    return _fitted_image_cached(str(source), width_px, height_px, scale_id, source_mtime_ns)
+    sharp_id = 1 if sharp else 0
+    return _fitted_image_cached(str(source), width_px, height_px, scale_id, sharp_id, source_mtime_ns)
 
 
 @lru_cache(maxsize=512)
-def _fitted_image_cached(path: str, width_px: int, height_px: int, scale_id: int, source_mtime_ns: int) -> Path:
+def _fitted_image_cached(path: str, width_px: int, height_px: int, scale_id: int, sharp_id: int, source_mtime_ns: int) -> Path:
     source = Path(path)
     source_id = str(source.relative_to(ROOT) if source.is_relative_to(ROOT) else source).replace("/", "__")
-    target = ART_CACHE / f"{source_id}-{width_px}x{height_px}-s{scale_id}.png"
+    resample_id = "nearest" if sharp_id else "smooth"
+    target = ART_CACHE / f"{source_id}-{width_px}x{height_px}-s{scale_id}-{resample_id}.png"
     if target.exists() and target.stat().st_mtime >= source.stat().st_mtime:
         return target
     target.parent.mkdir(parents=True, exist_ok=True)
     content_scale = scale_id / 100
+    resample = Image.Resampling.NEAREST if sharp_id else Image.Resampling.LANCZOS
     with Image.open(source) as image:
         image = image.convert("RGBA")
         fit_width = max(1, int(width_px * content_scale))
         fit_height = max(1, int(height_px * content_scale))
-        fitted = ImageOps.contain(image, (fit_width, fit_height), Image.Resampling.LANCZOS)
+        fitted = ImageOps.contain(image, (fit_width, fit_height), resample)
     canvas = Image.new("RGBA", (width_px, height_px), (0, 0, 0, 0))
     canvas.alpha_composite(fitted, ((width_px - fitted.width) // 2, (height_px - fitted.height) // 2))
     canvas.save(target)
@@ -152,10 +155,20 @@ def card_image(path: Path | None, width: int = 18, height: int = 11, content_sca
     if path is None or image_mode() == "off":
         return Text("")
     cell_width_px, cell_height_px = image_cell_pixels()
-    fitted = fitted_image(str(path), width * cell_width_px, height * cell_height_px, content_scale)
+    fitted = fitted_image(
+        str(path),
+        width * cell_width_px,
+        height * cell_height_px,
+        content_scale,
+        sharp=is_pixel_asset(path),
+    )
     mode = image_mode()
     fitted_mtime_ns = fitted.stat().st_mtime_ns
     return cached_terminal_image(str(fitted), mode, width, height, fitted_mtime_ns)
+
+
+def is_pixel_asset(path: Path) -> bool:
+    return any(part.startswith("pixel-") for part in path.parts)
 
 
 @lru_cache(maxsize=512)
@@ -223,6 +236,7 @@ __all__ = [
     "fitted_image",
     "image_cell_pixels",
     "image_mode",
+    "is_pixel_asset",
     "pixel_folder",
     "transparent_image",
 ]

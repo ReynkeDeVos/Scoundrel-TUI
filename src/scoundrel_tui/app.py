@@ -15,6 +15,7 @@ from scoundrel_tui.artwork import (
     card_image,
     card_spacer,
     fitted_image,
+    is_pixel_asset,
 )
 from scoundrel_tui.config import DEATH_STORY_IMAGES, MAX_HEALTH, SHELL_HORIZONTAL_MARGIN, STORY_IMAGES, WELCOME_MESSAGES
 from scoundrel_tui.game import Card, GameState, Suit
@@ -44,6 +45,7 @@ __all__ = [
     "card_image",
     "card_spacer",
     "fitted_image",
+    "is_pixel_asset",
     "main",
 ]
 
