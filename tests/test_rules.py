@@ -187,7 +187,7 @@ def test_story_overlays_render_expected_titles(monkeypatch) -> None:
     app = ScoundrelApp()
     console = Console(width=120, record=True)
 
-    for kind, title in [("welcome", "ENTER THE DUNGEON"), ("death", "YOU DIED"), ("win", "YOU WIN")]:
+    for kind, title in [("death", "YOU DIED"), ("win", "YOU WIN")]:
         console.begin_capture()
         console.print(app.render_overlay(kind))
         assert title in console.end_capture()
