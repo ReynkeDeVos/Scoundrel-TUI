@@ -8,6 +8,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from PIL import Image, ImageOps
+from rich import box
 from rich.align import Align
 from rich.console import Group, RenderableType
 from rich.panel import Panel
@@ -16,7 +17,7 @@ from rich.text import Text
 from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal, Vertical
+from textual.containers import Container, Vertical
 from textual.reactive import reactive
 from textual.widgets import Static
 from textual_image.renderable import halfcell, sixel, tgp
@@ -414,13 +415,13 @@ class ScoundrelApp(App[None]):
     CSS = """
     Screen {
         layers: base overlay;
-        background: #100d0a;
-        color: #f7e7bd;
+        background: #070909;
+        color: #d8cdb9;
     }
 
     #shell {
         layer: base;
-        padding: 0 1;
+        padding: 1 2;
         layout: vertical;
     }
 
@@ -432,8 +433,8 @@ class ScoundrelApp(App[None]):
     }
 
     #overlay {
-        width: 98;
-        height: 32;
+        width: 82;
+        height: 24;
     }
 
     #main {
@@ -441,50 +442,24 @@ class ScoundrelApp(App[None]):
         layout: vertical;
     }
 
-    #table {
-        height: 1fr;
-        layout: horizontal;
-    }
-
-    .panel {
-        height: auto;
-        margin-bottom: 1;
+    #status {
+        height: 4;
+        width: 1fr;
     }
 
     #room {
-        width: 1fr;
         height: 1fr;
-        margin-right: 1;
-    }
-
-    #prompt {
-        width: 32;
-        height: 1fr;
-    }
-
-    #log {
-        height: 5;
         width: 1fr;
     }
 
-    #lower {
-        height: 5;
-    }
-
-    #status {
-        height: 12;
-    }
-
-    #health, #dungeon {
+    #message {
+        height: 2;
         width: 1fr;
-        height: 11;
-        margin-right: 1;
     }
 
-    #weapon {
-        width: 2fr;
-        height: 11;
-        margin-right: 1;
+    #footer {
+        height: 3;
+        width: 1fr;
     }
     """
 
@@ -506,20 +481,15 @@ class ScoundrelApp(App[None]):
 
     state: reactive[GameState] = reactive(GameState.fresh, recompose=False)
     pixel_art: reactive[bool] = reactive(False, recompose=False)
-    overlay: reactive[str | None] = reactive("welcome", recompose=False)
+    overlay: reactive[str | None] = reactive(None, recompose=False)
 
     def compose(self) -> ComposeResult:
         with Container(id="shell"):
             with Vertical(id="main"):
-                with Horizontal(id="status"):
-                    yield Static(id="health", classes="panel")
-                    yield Static(id="weapon", classes="panel")
-                    yield Static(id="dungeon", classes="panel")
-                with Horizontal(id="table"):
-                    yield Static(id="room", classes="panel")
-                    yield Static(id="prompt", classes="panel")
-                with Horizontal(id="lower"):
-                    yield Static(id="log", classes="panel")
+                yield Static(id="status")
+                yield Static(id="room")
+                yield Static(id="message")
+                yield Static(id="footer")
         with Container(id="overlay-host"):
             yield Static(id="overlay")
 
@@ -568,17 +538,9 @@ class ScoundrelApp(App[None]):
         self.refresh_selection()
 
     def action_take_selected(self) -> None:
-        if self.overlay == "welcome":
-            self.overlay = None
-            self.refresh_board()
-            return
         self.action_take(self.state.selected_slot)
 
     def action_take(self, slot: int) -> None:
-        if self.overlay == "welcome":
-            self.overlay = None
-            self.refresh_board()
-            return
         self.state.take_slot(slot)
         self.refresh_board()
 
@@ -644,18 +606,17 @@ class ScoundrelApp(App[None]):
     def refresh_board(self) -> None:
         if self.state.game_over:
             self.overlay = "win" if self.state.won else "death"
-        self.query_one("#health", Static).update(self.render_health())
-        self.query_one("#weapon", Static).update(self.render_weapon())
+        self.query_one("#status", Static).update(self.render_status())
         self.query_one("#room", Static).update(self.render_room())
-        self.query_one("#prompt", Static).update(self.render_prompt())
-        self.query_one("#log", Static).update(self.render_log())
-        self.query_one("#dungeon", Static).update(self.render_dungeon())
+        self.query_one("#message", Static).update(self.render_message())
+        self.query_one("#footer", Static).update(self.render_footer())
         self.refresh_overlay()
 
     def refresh_selection(self) -> None:
-        self.query_one("#health", Static).update(self.render_health())
+        self.query_one("#status", Static).update(self.render_status())
         self.query_one("#room", Static).update(self.render_room())
-        self.query_one("#prompt", Static).update(self.render_prompt())
+        self.query_one("#message", Static).update(self.render_message())
+        self.query_one("#footer", Static).update(self.render_footer())
         self.refresh_overlay()
 
     def refresh_overlay(self) -> None:
@@ -669,12 +630,7 @@ class ScoundrelApp(App[None]):
         overlay.update(self.render_overlay(self.overlay))
 
     def render_overlay(self, kind: str) -> RenderableType:
-        if kind == "welcome":
-            title = Text("ENTER THE DUNGEON", style="bold #f8d27d")
-            message = Text("Press Enter to begin.  N starts a fresh run.  Q quits.", style="#d2b98d")
-            border = "#f8d27d"
-            image = STORY_IMAGES["welcome"]
-        elif kind == "win":
+        if kind == "win":
             title = Text("YOU WIN", style="bold #8df59b")
             message = Text(f"Escaped with {self.state.health} health.  Score {self.state.score}.  N starts a new run.", style="#d2b98d")
             border = "#71d083"
@@ -690,7 +646,37 @@ class ScoundrelApp(App[None]):
             Align.center(card_image(image if image.exists() else None, width=58, height=16)),
             Align.center(message),
         )
-        return Panel(body, border_style=border)
+        return Panel(body, border_style=border, box=box.SQUARE)
+
+    def render_status(self) -> RenderableType:
+        table = Table.grid(expand=True)
+        table.add_column(ratio=1)
+        table.add_column(ratio=1)
+        table.add_column(ratio=1)
+        table.add_column(ratio=1)
+        weapon = self.state.weapon.title if self.state.weapon else "Bare hands"
+        condition = self.weapon_condition()
+        remaining = len(self.state.dungeon) + sum(card is not None for card in self.state.room)
+        table.add_row(
+            self.status_item("Health:", f"{max(0, self.state.health)}/{MAX_HEALTH}", self.health_style(self.state.health)),
+            self.status_item("Equipped weapon:", weapon, "#d8cdb9"),
+            self.status_item("Weapon condition:", condition, "#d8cdb9"),
+            self.status_item("Remaining cards:", str(remaining), "#d8cdb9"),
+        )
+        return Align.center(table, vertical="middle")
+
+    def status_item(self, label: str, value: str, value_style: str) -> Text:
+        style = value_style if value_style.startswith("bold") else f"bold {value_style}"
+        return Text.assemble((label, "#776f63"), ("  ", "#776f63"), (value, style))
+
+    def weapon_condition(self) -> str:
+        weapon = self.state.weapon
+        if weapon is None:
+            return "-"
+        if not self.state.weapon_stack:
+            return f"{weapon.value}/{weapon.value}"
+        allowed = max(0, self.state.weapon_stack[-1].value - 1)
+        return f"{min(weapon.value, allowed)}/{weapon.value}"
 
     def render_health(self) -> RenderableType:
         health = max(0, self.state.health)
@@ -781,10 +767,10 @@ class ScoundrelApp(App[None]):
         card_width, _, _, _ = self.card_dimensions()
         table = Table.grid(expand=False)
         for _ in range(4):
-            table.add_column(width=card_width + 2)
+            table.add_column(width=card_width + 3)
         cells = [self.card_panel(index, card) for index, card in enumerate(self.state.room)]
         table.add_row(*cells)
-        return Panel(Align.center(table), title="ROOM", border_style="#b08b55")
+        return Align.center(table, vertical="middle")
 
     def card_dimensions(self) -> tuple[int, int, int, int]:
         fallback_width, fallback_height = self.estimated_room_size()
@@ -797,15 +783,15 @@ class ScoundrelApp(App[None]):
             room_width, room_height = fallback_width, fallback_height
 
         room_inner_width = max(96, room_width - 2)
-        card_width = max(24, (room_inner_width - 8) // 4)
-        card_height = max(22, room_height - 4)
+        card_width = max(25, (room_inner_width - 12) // 4)
+        card_height = max(24, room_height - 2)
 
-        image_width = max(14, card_width - 8)
-        image_height = max(10, card_height - 8)
+        image_width = max(15, card_width - 8)
+        image_height = max(10, card_height - 12)
         return card_width, card_height, image_width, image_height
 
     def estimated_room_size(self) -> tuple[int, int]:
-        return max(96, self.size.width - 35), max(26, self.size.height - 17)
+        return max(96, self.size.width - 6), max(26, self.size.height - 10)
 
     def card_panel(self, index: int, card: Card | None) -> RenderableType:
         selected = index == self.state.selected_slot
@@ -814,39 +800,59 @@ class ScoundrelApp(App[None]):
         if card is None:
             body = self.fixed_card_body(
                 [
-                    Align.center(Text("")),
                     card_spacer(image_width, image_height),
-                    Align.center(Text("empty", style="#3a3129")),
+                    Align.center(Text("empty", style="#323232")),
                 ],
                 card_width,
                 card_height,
             )
             return Panel(
                 body,
-                title=f"{index + 1}",
+                title=f" {index + 1} ",
                 subtitle=" ",
-                border_style="#3a3129",
+                border_style="#2c3030",
+                box=box.SQUARE,
                 width=card_width,
                 height=card_height,
                 expand=False,
             )
         path = asset_for(card, pixel=self.pixel_art)
-        label = Text(f"{card.title}  {card.kind}", style=f"bold {self.kind_color(card)}")
-        value = Text(f"value {card.value}", style="#f2dfb2")
+        label = Text(f"{card.title}", style=f"bold {self.kind_color(card)}")
+        kind = Text(card.kind.upper(), style="#71685c")
         parts: list[RenderableType] = [
-            Align.center(label),
+            label,
+            kind,
             card_art(card, path, width=image_width, height=image_height),
-            Align.center(value),
+            Align.center(Text(self.card_action_text(card), style="#c6b9a2")),
         ]
-        if card.kind == "Monster" and self.state.can_use_weapon(card) and self.state.weapon:
-            damage = max(0, card.value - self.state.weapon.value)
-            parts.append(Align.center(Text(f"monster damage {damage}", style="bold #f8d27d")))
         body = self.fixed_card_body(parts, card_width, card_height)
-        border = "bold #ffffff" if selected else self.kind_color(card)
+        border = "bold #f1e5c8" if selected else self.kind_color(card)
         if pending:
             border = "#ffffff"
-        title = f" >> {index + 1} << " if selected else f" {index + 1} "
-        return Panel(body, title=title, subtitle=self.slot_hint(card), border_style=border, width=card_width, height=card_height, expand=False)
+        title = f" {index + 1} "
+        return Panel(
+            body,
+            title=title,
+            subtitle=self.slot_hint(card),
+            border_style=border,
+            box=box.SQUARE,
+            width=card_width,
+            height=card_height,
+            expand=False,
+        )
+
+    def card_action_text(self, card: Card) -> str:
+        if card.kind == "Potion":
+            if self.state.used_potion:
+                return "discarded this room"
+            healed = min(MAX_HEALTH - self.state.health, card.value)
+            return f"heal {healed}"
+        if card.kind == "Weapon":
+            return f"equip value {card.value}"
+        if self.state.can_use_weapon(card) and self.state.weapon:
+            damage = max(0, card.value - self.state.weapon.value)
+            return f"monster damage {damage}"
+        return f"take {card.value} damage"
 
     def fixed_card_body(self, parts: list[RenderableType], card_width: int, card_height: int) -> RenderableType:
         return Align.center(
@@ -869,6 +875,50 @@ class ScoundrelApp(App[None]):
                 return "W/B"
             return "bare"
         return "take"
+
+    def render_message(self) -> RenderableType:
+        warning = self.selected_warning()
+        if self.state.confirm_new_game:
+            text = Text("Press N again to abandon this run and start a new game.", style="bold #c9a86a")
+        elif self.state.confirm_quit:
+            text = Text("Press Q again to quit.", style="bold #c9a86a")
+        elif self.state.game_over:
+            result = "Escaped" if self.state.won else "Fell in the dungeon"
+            text = Text(f"{result}. Score {self.state.score}.", style="#c9a86a")
+        elif self.state.pending_monster_slot is not None:
+            card = self.state.room[self.state.pending_monster_slot]
+            assert card is not None
+            damage = max(0, card.value - (self.state.weapon.value if self.state.weapon else 0))
+            text = Text(f"{card.title}: W uses weapon for {damage} damage, B fights bare for {card.value}.", style="#d8cdb9")
+        elif warning:
+            text = Text(warning, style="bold #d9695d")
+        elif self.state.log:
+            text = Text(self.state.log[-1], style="#777064")
+        else:
+            text = Text("")
+        return Align.center(text, vertical="middle")
+
+    def render_footer(self) -> RenderableType:
+        art = "pixel" if self.pixel_art else "portrait"
+        shortcuts = Text.assemble(
+            ("[1-4]", "#9e8454"),
+            (" take   ", "#595959"),
+            ("[←/→]", "#9e8454"),
+            (" select   ", "#595959"),
+            ("[Enter]", "#9e8454"),
+            (" take selected   ", "#595959"),
+            ("[A]", "#9e8454"),
+            (" avoid   ", "#595959"),
+            ("[W/B]", "#9e8454"),
+            (" weapon/bare   ", "#595959"),
+            ("[P]", "#9e8454"),
+            (f" {art}   ", "#595959"),
+            ("[N]", "#9e8454"),
+            (" new   ", "#595959"),
+            ("[Q]", "#9e8454"),
+            (" quit", "#595959"),
+        )
+        return Align.center(shortcuts, vertical="middle")
 
     def render_prompt(self) -> RenderableType:
         shortcut_hint = Group(
