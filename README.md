@@ -1,6 +1,8 @@
 # Scoundrel TUI
 
-A terminal version of Scoundrel.
+A terminal version of **Scoundrel**.
+
+It is a single player rogue-like card game for use with a standard deck of playing cards. It was developed by Zach Gage and Kurt Bieg.
 
 ## Demo
 
