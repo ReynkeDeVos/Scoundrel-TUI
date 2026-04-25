@@ -247,6 +247,34 @@ def test_weapon_damage_display_never_exceeds_base_value() -> None:
     assert "Next must be ≤ 11" in rendered
 
 
+def test_monster_cards_label_effective_damage_as_monster_damage(monkeypatch) -> None:
+    monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
+    app = ScoundrelApp()
+    app._size = Size(220, 60)
+    app.state = GameState(
+        room=[Card(Suit.CLUBS, 9), None, None, None],
+        weapon=Card(Suit.DIAMONDS, 5),
+    )
+    console = Console(width=80, record=True)
+
+    console.print(app.card_panel(0, app.state.room[0]))
+    rendered = console.export_text()
+    assert "monster damage 4" in rendered
+    assert "weapon damage" not in rendered
+
+
+def test_quit_requires_confirmation() -> None:
+    app = ScoundrelApp()
+    app.refresh_board = lambda: None
+
+    app.action_quit()
+
+    assert app.state.confirm_quit
+    console = Console(width=100, record=True)
+    console.print(app.render_prompt())
+    assert "Press Q again to confirm" in console.export_text()
+
+
 def test_health_preview_uses_marker_segments() -> None:
     app = ScoundrelApp()
     app.state = GameState(

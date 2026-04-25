@@ -28,6 +28,7 @@ MAX_HEALTH = 20
 ART_CACHE = ROOT / ".cache" / "scoundrel-art"
 DEFAULT_IMAGE_CELL_WIDTH_PX = 10
 DEFAULT_IMAGE_CELL_HEIGHT_PX = 20
+ITEM_CARD_ART_SCALE = 0.375
 STORY_IMAGES = {
     "welcome": ASSET_ROOT / "story" / "entry" / "trow_story_06-Temple_in_the_Deep.webp",
     "death": ASSET_ROOT / "story" / "death" / "trow_story_02-The_Fall.jpg",
@@ -132,6 +133,7 @@ class GameState:
     selected_slot: int = 0
     pending_monster_slot: int | None = None
     confirm_new_game: bool = False
+    confirm_quit: bool = False
     banner_tick: int = 0
     log: list[str] = field(default_factory=list)
 
@@ -167,6 +169,7 @@ class GameState:
 
     def avoid_room(self) -> bool:
         self.confirm_new_game = False
+        self.confirm_quit = False
         if self.avoided_last_room or self.turn_taken or self.pending_monster_slot is not None:
             return False
         cards = [card for card in self.room if card is not None]
@@ -181,6 +184,7 @@ class GameState:
 
     def take_slot(self, slot: int) -> None:
         self.confirm_new_game = False
+        self.confirm_quit = False
         if self.game_over or self.pending_monster_slot is not None:
             return
         if slot < 0 or slot >= 4 or self.room[slot] is None:
@@ -192,6 +196,7 @@ class GameState:
 
     def resolve_slot(self, slot: int, *, use_weapon: bool) -> None:
         self.confirm_new_game = False
+        self.confirm_quit = False
         card = self.room[slot]
         if card is None:
             return
@@ -396,7 +401,7 @@ def card_spacer(width: int, height: int) -> RenderableType:
 
 
 def card_art(card: Card, path: Path | None, width: int, height: int) -> RenderableType:
-    content_scale = 1.0 if card.kind == "Monster" else 0.5
+    content_scale = 1.0 if card.kind == "Monster" else ITEM_CARD_ART_SCALE
     return Align.center(
         card_image(path, width=width, height=height, content_scale=content_scale),
         vertical="middle",
@@ -528,6 +533,8 @@ class ScoundrelApp(App[None]):
         self.call_after_refresh(self.refresh_board)
 
     def action_toggle_pixel_art(self) -> None:
+        self.state.confirm_new_game = False
+        self.state.confirm_quit = False
         self.pixel_art = not self.pixel_art
         mode = "pixel" if self.pixel_art else "portrait"
         self.state.log.append(f"Artwork switched to {mode} mode.")
@@ -542,6 +549,7 @@ class ScoundrelApp(App[None]):
             self.overlay = None
         else:
             self.state.confirm_new_game = True
+            self.state.confirm_quit = False
             self.state.log.append("Press N again to abandon this run and start a new game.")
         self.refresh_board()
 
@@ -549,6 +557,7 @@ class ScoundrelApp(App[None]):
         if self.overlay:
             return
         self.state.confirm_new_game = False
+        self.state.confirm_quit = False
         cards = self.state.room
         index = self.state.selected_slot
         for _ in range(4):
@@ -576,6 +585,8 @@ class ScoundrelApp(App[None]):
     def action_weapon(self) -> None:
         if self.overlay:
             return
+        self.state.confirm_new_game = False
+        self.state.confirm_quit = False
         slot = self.state.pending_monster_slot
         if slot is None:
             selected = self.state.selected_slot
@@ -591,6 +602,8 @@ class ScoundrelApp(App[None]):
     def action_barehanded(self) -> None:
         if self.overlay:
             return
+        self.state.confirm_new_game = False
+        self.state.confirm_quit = False
         slot = self.state.pending_monster_slot
         if slot is None:
             selected = self.state.selected_slot
@@ -610,8 +623,20 @@ class ScoundrelApp(App[None]):
             self.state.log.append("You cannot avoid this room right now.")
         self.refresh_board()
 
+    def action_quit(self) -> None:
+        if self.state.confirm_quit:
+            self.exit()
+            return
+        self.overlay = None
+        self.state.confirm_new_game = False
+        self.state.confirm_quit = True
+        self.state.log.append("Press Q again to quit.")
+        self.refresh_board()
+
     def on_key(self, event: events.Key) -> None:
         if event.key == "escape" and self.state.pending_monster_slot is not None:
+            self.state.confirm_new_game = False
+            self.state.confirm_quit = False
             self.state.pending_monster_slot = None
             self.state.log.append("You steady yourself and reconsider the room.")
             self.refresh_selection()
@@ -815,7 +840,7 @@ class ScoundrelApp(App[None]):
         ]
         if card.kind == "Monster" and self.state.can_use_weapon(card) and self.state.weapon:
             damage = max(0, card.value - self.state.weapon.value)
-            parts.append(Align.center(Text(f"weapon damage {damage}", style="bold #f8d27d")))
+            parts.append(Align.center(Text(f"monster damage {damage}", style="bold #f8d27d")))
         body = self.fixed_card_body(parts, card_width, card_height)
         border = "bold #ffffff" if selected else self.kind_color(card)
         if pending:
@@ -862,6 +887,17 @@ class ScoundrelApp(App[None]):
                 Group(
                     Text("Start a new game? Press N again to confirm.", style="bold #f8d27d"),
                     Text("Any other gameplay key cancels.", style="#9f8664"),
+                    Text(""),
+                    shortcut_hint,
+                ),
+                border_style="#f8d27d",
+                title="HELP",
+            )
+        if self.state.confirm_quit:
+            return Panel(
+                Group(
+                    Text("Quit Scoundrel? Press Q again to confirm.", style="bold #f8d27d"),
+                    Text("Any gameplay key cancels.", style="#9f8664"),
                     Text(""),
                     shortcut_hint,
                 ),
