@@ -269,14 +269,31 @@ def test_status_health_bar_shows_selected_card_preview() -> None:
         health=12,
     )
 
-    status = app.health_status_item()
-    assert status.renderables[0].plain == "Health"
-    line = status.renderables[1]
+    line = app.health_status_value()
     assert line.plain == "12/20 ███▏████▌▌▌▌░░░░░░░░"
     styles = {span.style for span in line.spans}
     assert "bold #ff7a1a" in styles
     assert "bold #ffffff" in styles
     assert "#71d083" in styles
+
+
+def test_status_row_renders_as_two_lines() -> None:
+    app = ScoundrelApp()
+    app.state = GameState(
+        room=[Card(Suit.CLUBS, 9), Card(Suit.DIAMONDS, 5), Card(Suit.HEARTS, 6), Card(Suit.SPADES, 4)],
+        health=20,
+    )
+    console = Console(width=100, record=True)
+
+    console.print(app.render_status())
+    lines = [line for line in console.export_text().splitlines() if line.strip()]
+
+    assert len(lines) == 2
+    assert "Health" in lines[0]
+    assert "Equipped weapon" in lines[0]
+    assert "Weapon condition" in lines[0]
+    assert "Remaining cards" in lines[0]
+    assert "20/20" in lines[1]
 
 
 def test_monster_cards_label_effective_damage_as_monster_damage(monkeypatch) -> None:
