@@ -278,7 +278,8 @@ def test_status_health_bar_shows_selected_card_preview() -> None:
     assert "#71d083" in styles
 
 
-def test_status_row_renders_as_two_lines() -> None:
+def test_status_row_renders_as_two_lines_when_images_are_off(monkeypatch) -> None:
+    monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
     app = ScoundrelApp()
     app.state = GameState(
         room=[Card(Suit.CLUBS, 9), Card(Suit.DIAMONDS, 5), Card(Suit.HEARTS, 6), Card(Suit.SPADES, 4)],
@@ -295,6 +296,19 @@ def test_status_row_renders_as_two_lines() -> None:
     assert "Weapon condition" in lines[0]
     assert "Remaining cards" in lines[0]
     assert "20/20" in lines[1]
+
+
+def test_equipped_weapon_status_uses_bare_hands_icon_by_default() -> None:
+    app = ScoundrelApp()
+
+    assert app.equipped_weapon_image() == BARE_HANDS_IMAGE
+
+
+def test_equipped_weapon_status_uses_current_weapon_icon() -> None:
+    app = ScoundrelApp()
+    app.state = GameState(weapon=Card(Suit.DIAMONDS, 5))
+
+    assert app.equipped_weapon_image() == WEAPON_IMAGES[5]
 
 
 def test_estimated_room_size_accounts_for_shell_margin() -> None:
@@ -323,7 +337,7 @@ def test_monster_cards_label_effective_damage_as_monster_damage(monkeypatch) -> 
     assert "weapon damage" not in rendered
 
 
-def test_selected_card_panel_contains_visible_selected_label(monkeypatch) -> None:
+def test_selected_card_panel_uses_quiet_selection_marker(monkeypatch) -> None:
     monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
     app = ScoundrelApp()
     app._size = Size(220, 60)
@@ -334,8 +348,10 @@ def test_selected_card_panel_contains_visible_selected_label(monkeypatch) -> Non
     console = Console(width=80, record=True)
 
     console.print(app.card_panel(1, app.state.room[1]))
+    rendered = console.export_text()
 
-    assert "SELECTED" in console.export_text()
+    assert "SELECTED" not in rendered
+    assert "◆ 2 ◆" in rendered
 
 
 def test_quit_requires_confirmation() -> None:

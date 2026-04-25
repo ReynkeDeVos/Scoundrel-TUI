@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from rich import box
 from rich.align import Align
 from rich.console import Group, RenderableType
@@ -59,7 +61,7 @@ class ScoundrelApp(App[None]):
     }
 
     #status {
-        height: 3;
+        height: 4;
         width: 1fr;
     }
 
@@ -279,7 +281,7 @@ class ScoundrelApp(App[None]):
         )
         table.add_row(
             self.health_status_value(),
-            self.status_value(weapon, "#d8cdb9"),
+            self.weapon_status_value(weapon),
             self.status_value(condition, "#d8cdb9"),
             self.status_value(str(remaining), "#d8cdb9"),
         )
@@ -300,6 +302,21 @@ class ScoundrelApp(App[None]):
     def status_value(self, value: str, value_style: str) -> Text:
         style = value_style if value_style.startswith("bold") else f"bold {value_style}"
         return Text(value, style=style, no_wrap=True, overflow="ellipsis")
+
+    def weapon_status_value(self, weapon: str) -> RenderableType:
+        table = Table.grid(expand=False, padding=(0, 1))
+        table.add_column(width=5)
+        table.add_column(no_wrap=True)
+        table.add_row(
+            card_image(self.equipped_weapon_image(), width=4, height=2, content_scale=0.6),
+            self.status_value(weapon, "#d8cdb9"),
+        )
+        return table
+
+    def equipped_weapon_image(self) -> Path | None:
+        if self.state.weapon:
+            return asset_for(self.state.weapon, pixel=self.pixel_art)
+        return BARE_HANDS_IMAGE
 
     def weapon_condition(self) -> str:
         weapon = self.state.weapon
@@ -402,9 +419,15 @@ class ScoundrelApp(App[None]):
         table = Table.grid(expand=False)
         for _ in range(4):
             table.add_column(width=card_width + 3)
-        cells = [self.card_panel(index, card) for index, card in enumerate(self.state.room)]
+        cells = [self.card_cell(index, card) for index, card in enumerate(self.state.room)]
         table.add_row(*cells)
         return Align.center(table, vertical="middle")
+
+    def card_cell(self, index: int, card: Card | None) -> RenderableType:
+        panel = self.card_panel(index, card)
+        if index == self.state.selected_slot and card is not None:
+            return Group(panel, Text(""))
+        return Group(Text(""), panel)
 
     def card_dimensions(self) -> tuple[int, int, int, int]:
         fallback_width, fallback_height = self.estimated_room_size()
@@ -458,8 +481,6 @@ class ScoundrelApp(App[None]):
             label,
             kind,
         ]
-        if selected:
-            parts.append(Align.center(Text(" SELECTED ", style="bold #070909 on #f1e5c8")))
         parts.extend(
             [
                 card_art(card, path, width=image_width, height=image_height),
@@ -470,7 +491,7 @@ class ScoundrelApp(App[None]):
         border = "bold #f1e5c8" if selected else self.kind_color(card)
         if pending:
             border = "#ffffff"
-        title = f" {index + 1} SELECTED " if selected else f" {index + 1} "
+        title = f" ◆ {index + 1} ◆ " if selected else f" {index + 1} "
         return Panel(
             body,
             title=title,
