@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 from pathlib import Path
 
 from rich import box
@@ -22,7 +23,7 @@ from scoundrel_tui.artwork import (
     card_image,
     card_spacer,
 )
-from scoundrel_tui.config import MAX_HEALTH, SHELL_HORIZONTAL_MARGIN, STORY_IMAGES
+from scoundrel_tui.config import DEATH_STORY_IMAGES, MAX_HEALTH, SHELL_HORIZONTAL_MARGIN, STORY_IMAGES
 from scoundrel_tui.game import Card, GameState
 
 __all__ = ["ScoundrelApp", "main"]
@@ -257,14 +258,23 @@ class ScoundrelApp(App[None]):
             title = Text("YOU DIED", style="bold #f05d4f")
             message = Text(f"Final score {self.state.score}.  N starts a new run.  Q quits.", style="#d2b98d")
             border = "#f05d4f"
-            image = STORY_IMAGES["death"]
+            image = self.death_overlay_image()
 
         body = Group(
+            Text(""),
             Align.center(title),
+            Text(""),
             Align.center(card_image(image if image.exists() else None, width=58, height=16)),
+            Text(""),
             Align.center(message),
+            Text(""),
         )
         return Panel(body, border_style=border, box=box.SQUARE)
+
+    def death_overlay_image(self) -> Path:
+        if not DEATH_STORY_IMAGES:
+            return STORY_IMAGES["death"]
+        return random.choice(DEATH_STORY_IMAGES)
 
     def render_status(self) -> RenderableType:
         table = Table.grid(expand=False, padding=(0, 4))

@@ -16,13 +16,14 @@ from scoundrel_tui.artwork import (
     card_spacer,
     fitted_image,
 )
-from scoundrel_tui.config import MAX_HEALTH, SHELL_HORIZONTAL_MARGIN, STORY_IMAGES
+from scoundrel_tui.config import DEATH_STORY_IMAGES, MAX_HEALTH, SHELL_HORIZONTAL_MARGIN, STORY_IMAGES
 from scoundrel_tui.game import Card, GameState, Suit
 from scoundrel_tui.tui import ScoundrelApp, main
 
 __all__ = [
     "BARE_HANDS_IMAGE",
     "Card",
+    "DEATH_STORY_IMAGES",
     "GameState",
     "MAX_HEALTH",
     "MONSTER_PORTRAITS",

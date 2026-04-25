@@ -6,6 +6,7 @@ from textual_image.renderable import tgp
 from scoundrel_tui.app import (
     Card,
     BARE_HANDS_IMAGE,
+    DEATH_STORY_IMAGES,
     GameState,
     MONSTER_PORTRAITS,
     PIXEL_MONSTER_PORTRAITS,
@@ -181,6 +182,21 @@ def test_story_overlay_assets_are_available() -> None:
         assert path.exists()
         with Image.open(path) as image:
             image.verify()
+    assert {path.parent.name for path in DEATH_STORY_IMAGES} == {"death"}
+    assert len(DEATH_STORY_IMAGES) > 1
+    for path in DEATH_STORY_IMAGES:
+        with Image.open(path) as image:
+            image.verify()
+
+
+def test_death_overlay_image_uses_death_story_pool(monkeypatch) -> None:
+    monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
+    app = ScoundrelApp()
+
+    seen = {app.death_overlay_image() for _ in range(40)}
+
+    assert seen <= set(DEATH_STORY_IMAGES)
+    assert seen
 
 
 def test_story_overlays_render_expected_titles(monkeypatch) -> None:

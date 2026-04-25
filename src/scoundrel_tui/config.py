@@ -10,6 +10,7 @@ DEFAULT_IMAGE_CELL_WIDTH_PX = 10
 DEFAULT_IMAGE_CELL_HEIGHT_PX = 20
 ITEM_CARD_ART_SCALE = 0.375
 SHELL_HORIZONTAL_MARGIN = 9
+DEATH_STORY_IMAGES = tuple(sorted((ASSET_ROOT / "story" / "death").glob("*")))
 STORY_IMAGES = {
     "welcome": ASSET_ROOT / "story" / "entry" / "trow_story_06-Temple_in_the_Deep.webp",
     "death": ASSET_ROOT / "story" / "death" / "trow_story_02-The_Fall.jpg",
@@ -21,6 +22,7 @@ __all__ = [
     "ASSET_ROOT",
     "DEFAULT_IMAGE_CELL_HEIGHT_PX",
     "DEFAULT_IMAGE_CELL_WIDTH_PX",
+    "DEATH_STORY_IMAGES",
     "ITEM_CARD_ART_SCALE",
     "MAX_HEALTH",
     "ROOT",
