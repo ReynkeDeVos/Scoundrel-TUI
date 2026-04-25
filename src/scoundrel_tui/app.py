@@ -421,7 +421,7 @@ class ScoundrelApp(App[None]):
 
     #shell {
         layer: base;
-        padding: 1 2;
+        padding: 1 5;
         layout: vertical;
     }
 
@@ -809,7 +809,7 @@ class ScoundrelApp(App[None]):
         return card_width, card_height, image_width, image_height
 
     def estimated_room_size(self) -> tuple[int, int]:
-        return max(96, self.size.width - 6), max(26, self.size.height - 10)
+        return max(96, self.size.width - 12), max(26, self.size.height - 10)
 
     def card_panel(self, index: int, card: Card | None) -> RenderableType:
         selected = index == self.state.selected_slot
