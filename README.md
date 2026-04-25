@@ -1,11 +1,10 @@
 # Scoundrel TUI
 
-A polished terminal version of Scoundrel, built with Textual, Rich, Pillow, and
-textual-image.
+A terminal version of Scoundrel.
 
 ## Demo
 
-![Scoundrel TUI demo](demo/scoundrelq75.gif)
+![Scoundrel TUI demo](demo/scoundrel-demo.avif)
 
 ## Requirements
 
@@ -43,7 +42,7 @@ uv run scoundrel-tui
 ## Rules
 
 - Video explanation: [How to Play Scoundrel | The Best 1-Player Card Game of All Time by Rulies](https://www.youtube.com/watch?v=Gt2tYzM93h4)
-- BoardGameGeek: https://boardgamegeek.com/boardgame/191095/scoundrel
+- BoardGameGeek: <https://boardgamegeek.com/boardgame/191095/scoundrel>
 
 ## Image Mode
 
@@ -57,4 +56,4 @@ SCOUNDREL_IMAGE_MODE=halfcell uv run scoundrel
 ## Assets
 
 All visual assets are from [The Battle for Wesnoth](https://www.wesnoth.org/),
-one of the best games ever made.
+one of the best games ever made. Shoutout to the main portrait artists: Kathrin Polikeit (Kitty) & Emilien Rotival (LordBob)
