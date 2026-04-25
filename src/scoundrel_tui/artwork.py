@@ -62,7 +62,9 @@ def card_asset_map(folder: Path, values: range) -> dict[int, Path]:
 
 def pixel_folder(folder: Path) -> Path:
     matches = sorted(path for path in folder.glob("pixel-*") if path.is_dir())
-    return matches[0] if matches else folder
+    if not matches:
+        return folder
+    return max(matches, key=lambda path: len(card_asset_map(path, range(2, 15))))
 
 
 CLUBS_ASSET_FOLDER = ASSET_ROOT / "monsters" / "clubs"

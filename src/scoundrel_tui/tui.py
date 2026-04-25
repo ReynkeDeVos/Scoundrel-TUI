@@ -316,15 +316,17 @@ class ScoundrelApp(App[None]):
 
     def health_status_value(self) -> Text:
         health = max(0, self.state.health)
+        style = self.health_style(health)
+        value_style = style if style.startswith("bold") else f"bold {style}"
         return Text.assemble(
-            (f"{health:>2}/{MAX_HEALTH} ", self.health_style(health)),
+            (f"{health:>2}/{MAX_HEALTH} ", value_style),
             self.health_bar(health, width=MAX_HEALTH),
             no_wrap=True,
             overflow="ellipsis",
         )
 
     def status_label(self, label: str) -> Text:
-        return Text(label, style="#776f63", no_wrap=True, overflow="ellipsis")
+        return Text(label, style="bold #8f8679", no_wrap=True, overflow="ellipsis")
 
     def status_value(self, value: str, value_style: str) -> Text:
         style = value_style if value_style.startswith("bold") else f"bold {value_style}"
@@ -335,7 +337,7 @@ class ScoundrelApp(App[None]):
         table.add_column(width=3)
         table.add_column(no_wrap=True)
         table.add_row(
-            card_image(self.equipped_weapon_image(), width=2, height=1, content_scale=0.8),
+            card_image(self.equipped_weapon_image(), width=3, height=1, content_scale=1.0),
             self.status_value(weapon, "#d8cdb9"),
         )
         return table
@@ -443,9 +445,9 @@ class ScoundrelApp(App[None]):
 
     def render_room(self) -> RenderableType:
         card_width, _, _, _ = self.card_dimensions()
-        table = Table.grid(expand=False)
+        table = Table.grid(expand=False, padding=(0, 1))
         for _ in range(4):
-            table.add_column(width=card_width + 5)
+            table.add_column(width=card_width + 4)
         cells = [self.card_cell(index, card) for index, card in enumerate(self.state.room)]
         table.add_row(*cells)
         return Align.center(table, vertical="middle")
@@ -458,14 +460,15 @@ class ScoundrelApp(App[None]):
         title = " ◆ " if selected else ""
         subtitle = "lethal" if selected and card and self.card_is_lethal(card) else ""
         return Panel(
-            panel,
+            Align.center(panel, width=card_width + 2, height=card_height),
             title=title,
             subtitle=subtitle,
             border_style=border,
             box=box.SQUARE,
-            width=card_width + 2,
+            padding=(0, 0),
+            width=card_width + 4,
             height=card_height + 2,
-            expand=False,
+            expand=True,
         )
 
     def card_dimensions(self) -> tuple[int, int, int, int]:
@@ -479,7 +482,7 @@ class ScoundrelApp(App[None]):
             room_width, room_height = fallback_width, fallback_height
 
         room_inner_width = max(96, room_width - 2)
-        card_width = max(25, (room_inner_width - 12) // 4)
+        card_width = max(25, (room_inner_width - 26) // 4)
         card_height = max(24, room_height - 2)
 
         image_width = max(15, card_width - 8)
@@ -511,14 +514,16 @@ class ScoundrelApp(App[None]):
                 box=box.SQUARE,
                 width=card_width,
                 height=card_height,
-                expand=False,
+                expand=True,
             )
         path = asset_for(card, pixel=self.pixel_art)
-        label = Text(f"{card.title}", style=f"bold {self.kind_color(card)}")
-        kind = Text(card.kind.upper(), style="#71685c")
+        label = Text.assemble(
+            (card.title, f"bold {self.kind_color(card)}"),
+            ("  ", "#71685c"),
+            (card.kind.upper(), "#71685c"),
+        )
         parts: list[RenderableType] = [
             label,
-            kind,
         ]
         parts.extend(
             [
@@ -539,7 +544,7 @@ class ScoundrelApp(App[None]):
             box=box.SQUARE,
             width=card_width,
             height=card_height,
-            expand=False,
+            expand=True,
         )
 
     def card_border_style(self, card: Card) -> str:
@@ -624,11 +629,11 @@ class ScoundrelApp(App[None]):
             card = self.state.room[self.state.pending_monster_slot]
             assert card is not None
             damage = max(0, card.value - (self.state.weapon.value if self.state.weapon else 0))
-            text = Text(f"{card.title}: W uses weapon for {damage} damage, B fights bare for {card.value}.", style="#d8cdb9")
+            text = Text(f"{card.title}: W uses weapon for {damage} damage, B fights bare for {card.value}.", style="bold #d8cdb9")
         elif warning:
             text = Text(warning, style="bold #d9695d")
         elif self.state.log:
-            text = Text(self.state.log[-1], style="#777064")
+            text = Text(self.state.log[-1], style="bold #9f9688")
         else:
             text = Text("")
         return Align.center(text, vertical="middle")

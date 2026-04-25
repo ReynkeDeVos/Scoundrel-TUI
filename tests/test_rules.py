@@ -382,6 +382,20 @@ def test_selected_card_panel_uses_quiet_selection_marker(monkeypatch) -> None:
 
     assert "SELECTED" not in rendered
     assert "◆" in rendered
+    assert "│ ┌" in rendered
+    assert "┐ │" in rendered
+
+
+def test_card_kind_appears_on_same_line_as_rank(monkeypatch) -> None:
+    monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
+    app = ScoundrelApp()
+    app._size = Size(220, 60)
+    app.state = GameState(room=[Card(Suit.DIAMONDS, 2), None, None, None])
+    console = Console(width=80, record=True)
+
+    console.print(app.card_panel(0, app.state.room[0]))
+
+    assert "2♦  WEAPON" in console.export_text()
 
 
 def test_selected_and_unselected_card_cells_keep_same_height(monkeypatch) -> None:
