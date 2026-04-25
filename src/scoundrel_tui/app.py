@@ -30,6 +30,7 @@ ART_CACHE = ROOT / ".cache" / "scoundrel-art"
 DEFAULT_IMAGE_CELL_WIDTH_PX = 10
 DEFAULT_IMAGE_CELL_HEIGHT_PX = 20
 ITEM_CARD_ART_SCALE = 0.375
+SHELL_HORIZONTAL_MARGIN = 9
 STORY_IMAGES = {
     "welcome": ASSET_ROOT / "story" / "entry" / "trow_story_06-Temple_in_the_Deep.webp",
     "death": ASSET_ROOT / "story" / "death" / "trow_story_02-The_Fall.jpg",
@@ -421,7 +422,7 @@ class ScoundrelApp(App[None]):
 
     #shell {
         layer: base;
-        margin: 0 5;
+        margin: 0 __SHELL_HORIZONTAL_MARGIN__;
         padding: 1 0;
         layout: vertical;
     }
@@ -462,7 +463,7 @@ class ScoundrelApp(App[None]):
         height: 3;
         width: 1fr;
     }
-    """
+    """.replace("__SHELL_HORIZONTAL_MARGIN__", str(SHELL_HORIZONTAL_MARGIN))
 
     BINDINGS = [
         Binding("1", "take(0)", "Slot 1"),
@@ -810,7 +811,8 @@ class ScoundrelApp(App[None]):
         return card_width, card_height, image_width, image_height
 
     def estimated_room_size(self) -> tuple[int, int]:
-        return max(96, self.size.width - 12), max(26, self.size.height - 10)
+        outer_width = self.size.width - (SHELL_HORIZONTAL_MARGIN * 2)
+        return max(96, outer_width - 2), max(26, self.size.height - 10)
 
     def card_panel(self, index: int, card: Card | None) -> RenderableType:
         selected = index == self.state.selected_slot

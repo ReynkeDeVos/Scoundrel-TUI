@@ -13,6 +13,7 @@ from scoundrel_tui.app import (
     PIXEL_WEAPON_IMAGES,
     POTION_IMAGES,
     ScoundrelApp,
+    SHELL_HORIZONTAL_MARGIN,
     STORY_IMAGES,
     Suit,
     WEAPON_IMAGES,
@@ -294,6 +295,16 @@ def test_status_row_renders_as_two_lines() -> None:
     assert "Weapon condition" in lines[0]
     assert "Remaining cards" in lines[0]
     assert "20/20" in lines[1]
+
+
+def test_estimated_room_size_accounts_for_shell_margin() -> None:
+    app = ScoundrelApp()
+    app._size = Size(180, 50)
+
+    width, height = app.estimated_room_size()
+
+    assert width == 180 - (SHELL_HORIZONTAL_MARGIN * 2) - 2
+    assert height == 40
 
 
 def test_monster_cards_label_effective_damage_as_monster_damage(monkeypatch) -> None:
