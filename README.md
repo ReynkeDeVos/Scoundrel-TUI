@@ -3,9 +3,9 @@
 A polished terminal version of Scoundrel, built with Textual, Rich, Pillow, and
 textual-image.
 
-```text
-demo/scoundrel-demo.avif
-```
+## Demo
+
+![Scoundrel TUI demo](demo/scoundrelq75.gif)
 
 ## Requirements
 
@@ -56,8 +56,5 @@ SCOUNDREL_IMAGE_MODE=halfcell uv run scoundrel
 
 ## Assets
 
-Example pixel potion asset:
-
-```text
-assets/scoundrel/potions/pixel-potions/07-crystal-quiver.avif
-```
+All visual assets are from [The Battle for Wesnoth](https://www.wesnoth.org/),
+one of the best games ever made.
