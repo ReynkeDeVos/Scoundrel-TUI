@@ -650,7 +650,7 @@ class ScoundrelApp(App[None]):
 
     def render_status(self) -> RenderableType:
         table = Table.grid(expand=True)
-        table.add_column(ratio=1)
+        table.add_column(ratio=2)
         table.add_column(ratio=1)
         table.add_column(ratio=1)
         table.add_column(ratio=1)
@@ -658,12 +658,21 @@ class ScoundrelApp(App[None]):
         condition = self.weapon_condition()
         remaining = len(self.state.dungeon) + sum(card is not None for card in self.state.room)
         table.add_row(
-            self.status_item("Health:", f"{max(0, self.state.health)}/{MAX_HEALTH}", self.health_style(self.state.health)),
+            self.health_status_item(),
             self.status_item("Equipped weapon:", weapon, "#d8cdb9"),
             self.status_item("Weapon condition:", condition, "#d8cdb9"),
             self.status_item("Remaining cards:", str(remaining), "#d8cdb9"),
         )
         return Align.center(table, vertical="middle")
+
+    def health_status_item(self) -> Text:
+        health = max(0, self.state.health)
+        return Text.assemble(
+            ("Health:", "#776f63"),
+            ("  ", "#776f63"),
+            (f"{health:>2}/{MAX_HEALTH} ", self.health_style(health)),
+            self.health_bar(health, width=MAX_HEALTH),
+        )
 
     def status_item(self, label: str, value: str, value_style: str) -> Text:
         style = value_style if value_style.startswith("bold") else f"bold {value_style}"
@@ -672,11 +681,13 @@ class ScoundrelApp(App[None]):
     def weapon_condition(self) -> str:
         weapon = self.state.weapon
         if weapon is None:
-            return "-"
+            return "unarmed"
         if not self.state.weapon_stack:
-            return f"{weapon.value}/{weapon.value}"
-        allowed = max(0, self.state.weapon_stack[-1].value - 1)
-        return f"{min(weapon.value, allowed)}/{weapon.value}"
+            return "any monster"
+        allowed = self.state.weapon_stack[-1].value - 1
+        if allowed < 2:
+            return "spent"
+        return f"next ≤ {allowed}"
 
     def render_health(self) -> RenderableType:
         health = max(0, self.state.health)

@@ -247,6 +247,36 @@ def test_weapon_damage_display_never_exceeds_base_value() -> None:
     assert "Next must be ≤ 11" in rendered
 
 
+def test_status_weapon_condition_uses_scoundrel_limit() -> None:
+    app = ScoundrelApp()
+
+    app.state = GameState()
+    assert app.weapon_condition() == "unarmed"
+
+    app.state = GameState(weapon=Card(Suit.DIAMONDS, 5))
+    assert app.weapon_condition() == "any monster"
+
+    app.state = GameState(weapon=Card(Suit.DIAMONDS, 5), weapon_stack=[Card(Suit.SPADES, 4)])
+    assert app.weapon_condition() == "next ≤ 3"
+
+
+def test_status_health_bar_shows_selected_card_preview() -> None:
+    app = ScoundrelApp()
+    app.state = GameState(
+        room=[Card(Suit.CLUBS, 9), None, None, None],
+        weapon=Card(Suit.DIAMONDS, 5),
+        weapon_stack=[Card(Suit.SPADES, 10)],
+        health=12,
+    )
+
+    line = app.health_status_item()
+    assert line.plain == "Health:  12/20 ███▏████▌▌▌▌░░░░░░░░"
+    styles = {span.style for span in line.spans}
+    assert "bold #ff7a1a" in styles
+    assert "bold #ffffff" in styles
+    assert "#71d083" in styles
+
+
 def test_monster_cards_label_effective_damage_as_monster_damage(monkeypatch) -> None:
     monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
     app = ScoundrelApp()
