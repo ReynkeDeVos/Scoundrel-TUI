@@ -445,16 +445,28 @@ class ScoundrelApp(App[None]):
         card_width, _, _, _ = self.card_dimensions()
         table = Table.grid(expand=False)
         for _ in range(4):
-            table.add_column(width=card_width + 3)
+            table.add_column(width=card_width + 5)
         cells = [self.card_cell(index, card) for index, card in enumerate(self.state.room)]
         table.add_row(*cells)
         return Align.center(table, vertical="middle")
 
     def card_cell(self, index: int, card: Card | None) -> RenderableType:
         panel = self.card_panel(index, card)
-        if index == self.state.selected_slot and card is not None:
-            return Group(panel, Text(""))
-        return Group(Text(""), panel)
+        card_width, card_height, _, _ = self.card_dimensions()
+        selected = index == self.state.selected_slot and card is not None
+        border = self.selection_border_style(card) if selected else "#070909"
+        title = " ◆ " if selected else ""
+        subtitle = "lethal" if selected and card and self.card_is_lethal(card) else ""
+        return Panel(
+            panel,
+            title=title,
+            subtitle=subtitle,
+            border_style=border,
+            box=box.SQUARE,
+            width=card_width + 2,
+            height=card_height + 2,
+            expand=False,
+        )
 
     def card_dimensions(self) -> tuple[int, int, int, int]:
         fallback_width, fallback_height = self.estimated_room_size()
@@ -515,10 +527,10 @@ class ScoundrelApp(App[None]):
             ]
         )
         body = self.fixed_card_body(parts, card_width, card_height)
-        border = "bold #f1e5c8" if selected else self.kind_color(card)
+        border = self.card_border_style(card)
         if pending:
             border = "#ffffff"
-        title = f" ◆ {index + 1} ◆ " if selected else f" {index + 1} "
+        title = f" {index + 1} "
         return Panel(
             body,
             title=title,
@@ -529,6 +541,40 @@ class ScoundrelApp(App[None]):
             height=card_height,
             expand=False,
         )
+
+    def card_border_style(self, card: Card) -> str:
+        if card.kind == "Monster":
+            return self.monster_damage_style(card)
+        return self.kind_color(card)
+
+    def selection_border_style(self, card: Card | None) -> str:
+        if card and self.card_is_lethal(card):
+            return "bold #ff3b30"
+        return "bold #f1e5c8"
+
+    def monster_damage_style(self, card: Card) -> str:
+        damage = self.default_card_damage(card)
+        if damage <= 0:
+            return "#71d083"
+        if damage >= self.state.health:
+            return "bold #ff3b30"
+        health = max(1, self.state.health)
+        ratio = damage / health
+        if ratio >= 0.5:
+            return "#ff7a1a"
+        if ratio >= 0.25:
+            return "#d9a15c"
+        return "#b8a06d"
+
+    def default_card_damage(self, card: Card) -> int:
+        if card.kind != "Monster":
+            return 0
+        if self.state.can_use_weapon(card) and self.state.weapon:
+            return max(0, card.value - self.state.weapon.value)
+        return card.value
+
+    def card_is_lethal(self, card: Card) -> bool:
+        return card.kind == "Monster" and self.default_card_damage(card) >= self.state.health
 
     def card_action_text(self, card: Card) -> str:
         if card.kind == "Potion":

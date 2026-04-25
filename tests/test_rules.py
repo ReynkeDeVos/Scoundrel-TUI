@@ -377,11 +377,58 @@ def test_selected_card_panel_uses_quiet_selection_marker(monkeypatch) -> None:
     )
     console = Console(width=80, record=True)
 
-    console.print(app.card_panel(1, app.state.room[1]))
+    console.print(app.card_cell(1, app.state.room[1]))
     rendered = console.export_text()
 
     assert "SELECTED" not in rendered
-    assert "◆ 2 ◆" in rendered
+    assert "◆" in rendered
+
+
+def test_selected_and_unselected_card_cells_keep_same_height(monkeypatch) -> None:
+    monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
+    app = ScoundrelApp()
+    app._size = Size(220, 60)
+    app.state = GameState(
+        room=[Card(Suit.CLUBS, 9), Card(Suit.DIAMONDS, 5), None, None],
+        selected_slot=1,
+    )
+    console = Console(width=80, record=True)
+
+    selected = console.render_lines(app.card_cell(1, app.state.room[1]), console.options.update(width=80))
+    unselected = console.render_lines(app.card_cell(0, app.state.room[0]), console.options.update(width=80))
+
+    assert len(selected) == len(unselected)
+
+
+def test_monster_border_style_tracks_default_health_damage() -> None:
+    app = ScoundrelApp()
+    app.state = GameState(
+        room=[Card(Suit.CLUBS, 2), None, None, None],
+        weapon=Card(Suit.DIAMONDS, 5),
+        health=10,
+    )
+
+    assert app.monster_damage_style(Card(Suit.CLUBS, 2)) == "#71d083"
+    app.state.weapon = None
+    assert app.monster_damage_style(Card(Suit.CLUBS, 2)) == "#b8a06d"
+    assert app.monster_damage_style(Card(Suit.CLUBS, 3)) == "#d9a15c"
+    assert app.monster_damage_style(Card(Suit.CLUBS, 6)) == "#ff7a1a"
+    assert app.monster_damage_style(Card(Suit.CLUBS, 10)) == "bold #ff3b30"
+
+
+def test_selected_lethal_card_frame_shows_quiet_warning(monkeypatch) -> None:
+    monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
+    app = ScoundrelApp()
+    app._size = Size(220, 60)
+    app.state = GameState(
+        room=[Card(Suit.CLUBS, 10), None, None, None],
+        health=10,
+    )
+    console = Console(width=80, record=True)
+
+    console.print(app.card_cell(0, app.state.room[0]))
+
+    assert "lethal" in console.export_text()
 
 
 def test_quit_requires_confirmation() -> None:
