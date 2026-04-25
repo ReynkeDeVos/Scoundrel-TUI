@@ -10,7 +10,9 @@ DEFAULT_IMAGE_CELL_WIDTH_PX = 10
 DEFAULT_IMAGE_CELL_HEIGHT_PX = 20
 ITEM_CARD_ART_SCALE = 0.375
 SHELL_HORIZONTAL_MARGIN = 9
-DEATH_STORY_IMAGES = tuple(sorted((ASSET_ROOT / "story" / "death").glob("*")))
+ENTRY_STORY_IMAGES = tuple(sorted(path for path in (ASSET_ROOT / "story" / "entry").glob("*") if path.is_file()))
+DEATH_STORY_IMAGES = tuple(sorted(path for path in (ASSET_ROOT / "story" / "death").glob("*") if path.is_file()))
+WIN_STORY_IMAGES = tuple(sorted(path for path in (ASSET_ROOT / "story" / "win").glob("*") if path.is_file()))
 WELCOME_MESSAGES = (
     "The dungeon opens. Choose carefully.",
     "Four cards wait in the dark.",
@@ -29,10 +31,12 @@ __all__ = [
     "DEFAULT_IMAGE_CELL_HEIGHT_PX",
     "DEFAULT_IMAGE_CELL_WIDTH_PX",
     "DEATH_STORY_IMAGES",
+    "ENTRY_STORY_IMAGES",
     "ITEM_CARD_ART_SCALE",
     "MAX_HEALTH",
     "ROOT",
     "SHELL_HORIZONTAL_MARGIN",
     "STORY_IMAGES",
     "WELCOME_MESSAGES",
+    "WIN_STORY_IMAGES",
 ]

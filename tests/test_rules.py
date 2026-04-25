@@ -7,6 +7,7 @@ from scoundrel_tui.app import (
     Card,
     BARE_HANDS_IMAGE,
     DEATH_STORY_IMAGES,
+    ENTRY_STORY_IMAGES,
     GameState,
     MONSTER_PORTRAITS,
     PIXEL_MONSTER_PORTRAITS,
@@ -19,6 +20,7 @@ from scoundrel_tui.app import (
     Suit,
     WEAPON_IMAGES,
     WELCOME_MESSAGES,
+    WIN_STORY_IMAGES,
     asset_for,
     cached_terminal_image,
     fitted_image,
@@ -199,19 +201,47 @@ def test_story_overlay_assets_are_available() -> None:
             image.verify()
     assert {path.parent.name for path in DEATH_STORY_IMAGES} == {"death"}
     assert len(DEATH_STORY_IMAGES) > 1
-    for path in DEATH_STORY_IMAGES:
+    assert {path.parent.name for path in ENTRY_STORY_IMAGES} == {"entry"}
+    assert len(ENTRY_STORY_IMAGES) > 1
+    assert {path.parent.name for path in WIN_STORY_IMAGES} == {"win"}
+    assert WIN_STORY_IMAGES
+    for path in [*DEATH_STORY_IMAGES, *ENTRY_STORY_IMAGES, *WIN_STORY_IMAGES]:
         with Image.open(path) as image:
             image.verify()
 
 
-def test_death_overlay_image_uses_death_story_pool(monkeypatch) -> None:
+def test_story_overlay_images_use_folder_pools_and_stay_stable(monkeypatch) -> None:
     monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
     app = ScoundrelApp()
 
-    seen = {app.death_overlay_image() for _ in range(40)}
+    assert app.overlay_image("welcome") in set(ENTRY_STORY_IMAGES)
 
-    assert seen <= set(DEATH_STORY_IMAGES)
-    assert seen
+    app.set_overlay("death")
+    death_image = app.death_overlay_image()
+    assert death_image in set(DEATH_STORY_IMAGES)
+    assert {app.death_overlay_image() for _ in range(10)} == {death_image}
+
+    app.set_overlay("win")
+    assert app.overlay_image("win") in set(WIN_STORY_IMAGES)
+
+
+def test_portrait_story_images_use_vertical_overlay_slot() -> None:
+    app = ScoundrelApp()
+
+    assert app.overlay_image_size(WIN_STORY_IMAGES[0]) == (34, 22)
+
+
+def test_enter_does_not_cycle_game_over_overlay_image(monkeypatch) -> None:
+    monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
+    app = ScoundrelApp()
+    app.refresh_board = lambda: None
+    app.set_overlay("death")
+    image = app.death_overlay_image()
+
+    app.action_take_selected()
+
+    assert app.overlay == "death"
+    assert app.death_overlay_image() == image
 
 
 def test_story_overlays_render_expected_titles(monkeypatch) -> None:
@@ -271,7 +301,7 @@ def test_card_panels_render_with_identical_height(monkeypatch) -> None:
 def test_weapon_stack_panel_shows_highest_allowed_next_value() -> None:
     app = ScoundrelApp()
     app.state = GameState(weapon=Card(Suit.DIAMONDS, 5), weapon_stack=[Card(Suit.SPADES, 4)])
-    console = Console(width=100, record=True)
+    console = Console(width=140, record=True)
 
     console.print(app.render_weapon())
     rendered = console.export_text()
@@ -282,7 +312,7 @@ def test_weapon_stack_panel_shows_highest_allowed_next_value() -> None:
 def test_weapon_damage_display_never_exceeds_base_value() -> None:
     app = ScoundrelApp()
     app.state = GameState(weapon=Card(Suit.DIAMONDS, 5), weapon_stack=[Card(Suit.SPADES, 12)])
-    console = Console(width=100, record=True)
+    console = Console(width=140, record=True)
 
     console.print(app.render_weapon())
     rendered = console.export_text()
@@ -302,6 +332,34 @@ def test_status_weapon_condition_uses_scoundrel_limit() -> None:
 
     app.state = GameState(weapon=Card(Suit.DIAMONDS, 5), weapon_stack=[Card(Suit.SPADES, 4)])
     assert app.weapon_condition() == "next ≤ 3"
+
+    app.state = GameState(weapon=Card(Suit.DIAMONDS, 5), weapon_stack=[Card(Suit.CLUBS, 2)])
+    assert app.weapon_condition() == "broken"
+
+
+def test_status_strong_kills_counts_only_jack_or_higher_monsters() -> None:
+    app = ScoundrelApp()
+    app.state = GameState(
+        discard=[
+            Card(Suit.CLUBS, 14),
+            Card(Suit.CLUBS, 13),
+            Card(Suit.SPADES, 10),
+            Card(Suit.DIAMONDS, 13),
+            Card(Suit.SPADES, 11),
+        ],
+        weapon_stack=[Card(Suit.CLUBS, 12), Card(Suit.SPADES, 14), Card(Suit.SPADES, 4)],
+    )
+
+    console = Console(width=40, record=True)
+    console.print(app.strong_kills_status_value())
+    rendered = console.export_text()
+
+    assert [line.rstrip() for line in rendered.splitlines()] == ["A♣ K♣ Q♣", "A♠ J♠"]
+    assert "10♠" not in rendered
+    assert "K♦" not in rendered
+
+    row = app.strong_kill_row(app.strong_monsters_killed(), suit=Suit.CLUBS)
+    assert any("strike" in str(span.style) for span in row.spans)
 
 
 def test_status_health_bar_shows_selected_card_preview() -> None:
@@ -328,7 +386,7 @@ def test_status_row_renders_as_two_lines_when_images_are_off(monkeypatch) -> Non
         room=[Card(Suit.CLUBS, 9), Card(Suit.DIAMONDS, 5), Card(Suit.HEARTS, 6), Card(Suit.SPADES, 4)],
         health=20,
     )
-    console = Console(width=100, record=True)
+    console = Console(width=140, record=True)
 
     console.print(app.render_status())
     lines = [line for line in console.export_text().splitlines() if line.strip()]
@@ -477,6 +535,23 @@ def test_quit_requires_confirmation() -> None:
     console = Console(width=100, record=True)
     console.print(app.render_prompt())
     assert "Press Q again to confirm" in console.export_text()
+
+
+def test_quit_exits_immediately_after_death() -> None:
+    app = ScoundrelApp()
+    exited = False
+
+    def exit_once() -> None:
+        nonlocal exited
+        exited = True
+
+    app.exit = exit_once
+    app.state = GameState(game_over=True, won=False)
+
+    app.action_quit()
+
+    assert exited
+    assert not app.state.confirm_quit
 
 
 def test_health_preview_uses_marker_segments() -> None:

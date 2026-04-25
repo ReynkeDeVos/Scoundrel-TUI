@@ -17,7 +17,15 @@ from scoundrel_tui.artwork import (
     fitted_image,
     is_pixel_asset,
 )
-from scoundrel_tui.config import DEATH_STORY_IMAGES, MAX_HEALTH, SHELL_HORIZONTAL_MARGIN, STORY_IMAGES, WELCOME_MESSAGES
+from scoundrel_tui.config import (
+    DEATH_STORY_IMAGES,
+    ENTRY_STORY_IMAGES,
+    MAX_HEALTH,
+    SHELL_HORIZONTAL_MARGIN,
+    STORY_IMAGES,
+    WELCOME_MESSAGES,
+    WIN_STORY_IMAGES,
+)
 from scoundrel_tui.game import Card, GameState, Suit
 from scoundrel_tui.tui import ScoundrelApp, main
 
@@ -25,6 +33,7 @@ __all__ = [
     "BARE_HANDS_IMAGE",
     "Card",
     "DEATH_STORY_IMAGES",
+    "ENTRY_STORY_IMAGES",
     "GameState",
     "MAX_HEALTH",
     "MONSTER_PORTRAITS",
@@ -38,6 +47,7 @@ __all__ = [
     "Suit",
     "WEAPON_IMAGES",
     "WELCOME_MESSAGES",
+    "WIN_STORY_IMAGES",
     "asset_for",
     "cached_terminal_image",
     "card_art",

@@ -3,6 +3,7 @@ from __future__ import annotations
 import random
 from pathlib import Path
 
+from PIL import Image
 from rich import box
 from rich.align import Align
 from rich.console import Group, RenderableType
@@ -23,8 +24,16 @@ from scoundrel_tui.artwork import (
     card_image,
     card_spacer,
 )
-from scoundrel_tui.config import DEATH_STORY_IMAGES, MAX_HEALTH, SHELL_HORIZONTAL_MARGIN, STORY_IMAGES, WELCOME_MESSAGES
-from scoundrel_tui.game import Card, GameState
+from scoundrel_tui.config import (
+    DEATH_STORY_IMAGES,
+    ENTRY_STORY_IMAGES,
+    MAX_HEALTH,
+    SHELL_HORIZONTAL_MARGIN,
+    STORY_IMAGES,
+    WELCOME_MESSAGES,
+    WIN_STORY_IMAGES,
+)
+from scoundrel_tui.game import Card, GameState, Suit
 
 __all__ = ["ScoundrelApp", "main"]
 
@@ -105,6 +114,8 @@ class ScoundrelApp(App[None]):
     def __init__(self) -> None:
         super().__init__()
         self.welcome_message = random.choice(WELCOME_MESSAGES)
+        self.overlay_images: dict[str, Path] = {}
+        self.set_overlay("welcome")
 
     def compose(self) -> ComposeResult:
         with Container(id="shell"):
@@ -136,10 +147,10 @@ class ScoundrelApp(App[None]):
     def action_new_game(self) -> None:
         if self.state.game_over:
             self.state = GameState.fresh()
-            self.overlay = None
+            self.set_overlay(None)
         elif self.state.confirm_new_game:
             self.state = GameState.fresh()
-            self.overlay = None
+            self.set_overlay(None)
         else:
             self.state.confirm_new_game = True
             self.state.confirm_quit = False
@@ -162,15 +173,19 @@ class ScoundrelApp(App[None]):
 
     def action_take_selected(self) -> None:
         if self.overlay == "welcome":
-            self.overlay = None
+            self.set_overlay(None)
             self.refresh_board()
+            return
+        if self.overlay:
             return
         self.action_take(self.state.selected_slot)
 
     def action_take(self, slot: int) -> None:
         if self.overlay == "welcome":
-            self.overlay = None
+            self.set_overlay(None)
             self.refresh_board()
+            return
+        if self.overlay:
             return
         self.state.take_slot(slot)
         self.refresh_board()
@@ -217,10 +232,13 @@ class ScoundrelApp(App[None]):
         self.refresh_board()
 
     def action_quit(self) -> None:
+        if self.state.game_over:
+            self.exit()
+            return
         if self.state.confirm_quit:
             self.exit()
             return
-        self.overlay = None
+        self.set_overlay(None)
         self.state.confirm_new_game = False
         self.state.confirm_quit = True
         self.state.log.append("Press Q again to quit.")
@@ -236,7 +254,7 @@ class ScoundrelApp(App[None]):
 
     def refresh_board(self) -> None:
         if self.state.game_over:
-            self.overlay = "win" if self.state.won else "death"
+            self.set_overlay("win" if self.state.won else "death")
         self.query_one("#status", Static).update(self.render_status())
         self.query_one("#room", Static).update(self.render_room())
         self.query_one("#message", Static).update(self.render_message())
@@ -265,54 +283,96 @@ class ScoundrelApp(App[None]):
             title = Text("WELCOME TO THE DUNGEON", style="bold #f1e5c8")
             message = Text(f"{self.welcome_message}  Press Enter to begin.", style="#d2b98d")
             border = "#b8a06d"
-            image = STORY_IMAGES["welcome"]
         elif kind == "win":
             title = Text("YOU WIN", style="bold #8df59b")
             message = Text(f"Escaped with {self.state.health} health.  Score {self.state.score}.  N starts a new run.", style="#d2b98d")
             border = "#71d083"
-            image = STORY_IMAGES["win"]
         else:
             title = Text("YOU DIED", style="bold #f05d4f")
             message = Text(f"Final score {self.state.score}.  N starts a new run.  Q quits.", style="#d2b98d")
             border = "#f05d4f"
-            image = self.death_overlay_image()
+        image = self.overlay_image(kind)
+        image_width, image_height = self.overlay_image_size(image)
 
         body = Group(
             Text(""),
             Align.center(title),
             Text(""),
-            Align.center(card_image(image if image.exists() else None, width=58, height=16)),
+            Align.center(card_image(image if image.exists() else None, width=image_width, height=image_height)),
             Text(""),
             Align.center(message),
             Text(""),
         )
         return Panel(body, border_style=border, box=box.SQUARE)
 
+    def set_overlay(self, kind: str | None) -> None:
+        if kind and kind != self.overlay:
+            self.overlay_images[kind] = self.random_story_image(kind)
+        self.overlay = kind
+
+    def overlay_image(self, kind: str) -> Path:
+        if kind not in self.overlay_images:
+            self.overlay_images[kind] = self.random_story_image(kind)
+        return self.overlay_images[kind]
+
+    def random_story_image(self, kind: str) -> Path:
+        pool = {
+            "welcome": ENTRY_STORY_IMAGES,
+            "death": DEATH_STORY_IMAGES,
+            "win": WIN_STORY_IMAGES,
+        }.get(kind, ())
+        if pool:
+            return random.choice(pool)
+        return STORY_IMAGES[kind]
+
+    def overlay_image_size(self, image: Path) -> tuple[int, int]:
+        try:
+            with Image.open(image) as loaded:
+                width, height = loaded.size
+        except OSError:
+            return 58, 16
+        if height > width:
+            return 34, 22
+        return 58, 16
+
     def death_overlay_image(self) -> Path:
-        if not DEATH_STORY_IMAGES:
-            return STORY_IMAGES["death"]
-        return random.choice(DEATH_STORY_IMAGES)
+        return self.overlay_image("death")
 
     def render_status(self) -> RenderableType:
-        table = Table.grid(expand=False, padding=(0, 4))
+        table = Table.grid(expand=False, padding=(0, 6))
         for _ in range(4):
             table.add_column(no_wrap=True)
         weapon = self.state.weapon.title if self.state.weapon else "Bare hands"
         condition = self.weapon_condition()
         remaining = len(self.state.dungeon) + sum(card is not None for card in self.state.room)
         table.add_row(
-            self.status_label("Health"),
-            self.status_label("Equipped weapon"),
-            self.status_label("Weapon condition"),
-            self.status_label("Remaining cards"),
-        )
-        table.add_row(
-            self.health_status_value(),
-            self.weapon_status_value(weapon),
-            self.status_value(condition, "#d8cdb9"),
-            self.status_value(str(remaining), "#d8cdb9"),
+            self.status_section("Health", self.health_status_value()),
+            self.weapon_status_section(weapon, condition),
+            self.status_section("Strong kills", self.strong_kills_status_value()),
+            self.status_section("Remaining cards", self.status_value(str(remaining), "#d8cdb9")),
         )
         return Align.center(table, vertical="middle")
+
+    def status_section(self, label: str, value: RenderableType) -> RenderableType:
+        table = Table.grid(expand=False)
+        table.add_column(no_wrap=True)
+        table.add_row(self.status_label(label))
+        table.add_row(value)
+        return table
+
+    def weapon_status_section(self, weapon: str, condition: str) -> RenderableType:
+        table = Table.grid(expand=False, padding=(0, 1))
+        for _ in range(2):
+            table.add_column(no_wrap=True)
+        table.add_row(
+            self.status_label("Equipped weapon"),
+            self.status_label("Weapon condition"),
+        )
+        table.add_row(
+            self.weapon_status_value(weapon),
+            self.status_value(condition, "#d8cdb9"),
+        )
+        return table
 
     def health_status_value(self) -> Text:
         health = max(0, self.state.health)
@@ -331,6 +391,36 @@ class ScoundrelApp(App[None]):
     def status_value(self, value: str, value_style: str) -> Text:
         style = value_style if value_style.startswith("bold") else f"bold {value_style}"
         return Text(value, style=style, no_wrap=True, overflow="ellipsis")
+
+    def strong_kills_status_value(self) -> RenderableType:
+        slain = self.strong_monsters_killed()
+        if not slain:
+            return self.status_value("-", "#8f8679")
+        table = Table.grid(expand=False)
+        table.add_column(no_wrap=True)
+        table.add_row(self.strong_kill_row(slain, suit=Suit.CLUBS))
+        table.add_row(self.strong_kill_row(slain, suit=Suit.SPADES))
+        return table
+
+    def strong_kill_row(self, slain: list[Card], *, suit: Suit, prefix: str = "") -> Text:
+        symbols: list[tuple[str, str]] = []
+        if prefix:
+            symbols.append((prefix, "bold #d8cdb9"))
+        titles = [card.title for card in slain if card.suit == suit]
+        if not titles:
+            symbols.append(("-", "bold #8f8679"))
+        for index, title in enumerate(titles):
+            suffix = " " if index < len(titles) - 1 else ""
+            symbols.append((f"{title}{suffix}", "strike bold #d9a15c"))
+        return Text.assemble(*symbols, no_wrap=True, overflow="ellipsis")
+
+    def strong_monsters_killed(self) -> list[Card]:
+        killed = [
+            card
+            for card in [*self.state.discard, *self.state.weapon_stack]
+            if card.kind == "Monster" and card.value in (14, 13, 12, 11)
+        ]
+        return sorted(killed, key=lambda card: (-card.value, card.suit.value))
 
     def weapon_status_value(self, weapon: str) -> RenderableType:
         table = Table.grid(expand=False, padding=(0, 1))
@@ -355,7 +445,7 @@ class ScoundrelApp(App[None]):
             return "any monster"
         allowed = self.state.weapon_stack[-1].value - 1
         if allowed < 2:
-            return "spent"
+            return "broken"
         return f"next ≤ {allowed}"
 
     def render_health(self) -> RenderableType:
