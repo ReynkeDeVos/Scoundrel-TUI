@@ -659,24 +659,28 @@ class ScoundrelApp(App[None]):
         remaining = len(self.state.dungeon) + sum(card is not None for card in self.state.room)
         table.add_row(
             self.health_status_item(),
-            self.status_item("Equipped weapon:", weapon, "#d8cdb9"),
-            self.status_item("Weapon condition:", condition, "#d8cdb9"),
-            self.status_item("Remaining cards:", str(remaining), "#d8cdb9"),
+            self.status_item("Equipped weapon", weapon, "#d8cdb9"),
+            self.status_item("Weapon condition", condition, "#d8cdb9"),
+            self.status_item("Remaining cards", str(remaining), "#d8cdb9"),
         )
         return Align.center(table, vertical="middle")
 
-    def health_status_item(self) -> Text:
+    def health_status_item(self) -> RenderableType:
         health = max(0, self.state.health)
-        return Text.assemble(
-            ("Health:", "#776f63"),
-            ("  ", "#776f63"),
-            (f"{health:>2}/{MAX_HEALTH} ", self.health_style(health)),
-            self.health_bar(health, width=MAX_HEALTH),
+        return Group(
+            Text("Health", style="#776f63"),
+            Text.assemble(
+                (f"{health:>2}/{MAX_HEALTH} ", self.health_style(health)),
+                self.health_bar(health, width=MAX_HEALTH),
+            ),
         )
 
-    def status_item(self, label: str, value: str, value_style: str) -> Text:
+    def status_item(self, label: str, value: str, value_style: str) -> RenderableType:
         style = value_style if value_style.startswith("bold") else f"bold {value_style}"
-        return Text.assemble((label, "#776f63"), ("  ", "#776f63"), (value, style))
+        return Group(
+            Text(label, style="#776f63"),
+            Text(value, style=style),
+        )
 
     def weapon_condition(self) -> str:
         weapon = self.state.weapon

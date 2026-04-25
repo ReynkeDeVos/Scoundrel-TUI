@@ -269,8 +269,10 @@ def test_status_health_bar_shows_selected_card_preview() -> None:
         health=12,
     )
 
-    line = app.health_status_item()
-    assert line.plain == "Health:  12/20 ███▏████▌▌▌▌░░░░░░░░"
+    status = app.health_status_item()
+    assert status.renderables[0].plain == "Health"
+    line = status.renderables[1]
+    assert line.plain == "12/20 ███▏████▌▌▌▌░░░░░░░░"
     styles = {span.style for span in line.spans}
     assert "bold #ff7a1a" in styles
     assert "bold #ffffff" in styles
