@@ -344,7 +344,7 @@ class ScoundrelApp(App[None]):
 
     def equipped_weapon_image(self) -> Path | None:
         if self.state.weapon:
-            return asset_for(self.state.weapon, pixel=self.pixel_art)
+            return asset_for(self.state.weapon, pixel=False)
         return BARE_HANDS_IMAGE
 
     def weapon_condition(self) -> str:

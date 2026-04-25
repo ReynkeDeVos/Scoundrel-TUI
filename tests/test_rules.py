@@ -354,6 +354,15 @@ def test_equipped_weapon_status_uses_current_weapon_icon() -> None:
     assert app.equipped_weapon_image() == WEAPON_IMAGES[5]
 
 
+def test_equipped_weapon_status_ignores_pixel_art_mode() -> None:
+    app = ScoundrelApp()
+    app.pixel_art = True
+    app.state = GameState(weapon=Card(Suit.DIAMONDS, 5))
+
+    assert app.equipped_weapon_image() == WEAPON_IMAGES[5]
+    assert app.equipped_weapon_image() != PIXEL_WEAPON_IMAGES[5]
+
+
 def test_estimated_room_size_accounts_for_shell_margin() -> None:
     app = ScoundrelApp()
     app._size = Size(180, 50)
