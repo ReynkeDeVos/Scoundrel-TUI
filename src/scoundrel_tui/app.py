@@ -16,7 +16,7 @@ from scoundrel_tui.artwork import (
     card_spacer,
     fitted_image,
 )
-from scoundrel_tui.config import DEATH_STORY_IMAGES, MAX_HEALTH, SHELL_HORIZONTAL_MARGIN, STORY_IMAGES
+from scoundrel_tui.config import DEATH_STORY_IMAGES, MAX_HEALTH, SHELL_HORIZONTAL_MARGIN, STORY_IMAGES, WELCOME_MESSAGES
 from scoundrel_tui.game import Card, GameState, Suit
 from scoundrel_tui.tui import ScoundrelApp, main
 
@@ -36,6 +36,7 @@ __all__ = [
     "ScoundrelApp",
     "Suit",
     "WEAPON_IMAGES",
+    "WELCOME_MESSAGES",
     "asset_for",
     "cached_terminal_image",
     "card_art",

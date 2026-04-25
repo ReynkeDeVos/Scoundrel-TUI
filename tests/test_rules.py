@@ -18,6 +18,7 @@ from scoundrel_tui.app import (
     STORY_IMAGES,
     Suit,
     WEAPON_IMAGES,
+    WELCOME_MESSAGES,
     asset_for,
     cached_terminal_image,
     fitted_image,
@@ -178,6 +179,7 @@ def test_pixel_art_assets_are_mapped_by_value() -> None:
 
 def test_story_overlay_assets_are_available() -> None:
     assert set(STORY_IMAGES) == {"welcome", "death", "win"}
+    assert WELCOME_MESSAGES
     for path in STORY_IMAGES.values():
         assert path.exists()
         with Image.open(path) as image:
@@ -204,10 +206,22 @@ def test_story_overlays_render_expected_titles(monkeypatch) -> None:
     app = ScoundrelApp()
     console = Console(width=120, record=True)
 
-    for kind, title in [("death", "YOU DIED"), ("win", "YOU WIN")]:
+    for kind, title in [("welcome", "WELCOME TO THE DUNGEON"), ("death", "YOU DIED"), ("win", "YOU WIN")]:
         console.begin_capture()
         console.print(app.render_overlay(kind))
         assert title in console.end_capture()
+
+
+def test_welcome_overlay_is_initial_and_enter_dismisses_it() -> None:
+    app = ScoundrelApp()
+    app.refresh_board = lambda: None
+
+    assert app.overlay == "welcome"
+    assert app.welcome_message in WELCOME_MESSAGES
+
+    app.action_take_selected()
+
+    assert app.overlay is None
 
 
 def test_only_one_potion_heals_per_room() -> None:

@@ -23,7 +23,7 @@ from scoundrel_tui.artwork import (
     card_image,
     card_spacer,
 )
-from scoundrel_tui.config import DEATH_STORY_IMAGES, MAX_HEALTH, SHELL_HORIZONTAL_MARGIN, STORY_IMAGES
+from scoundrel_tui.config import DEATH_STORY_IMAGES, MAX_HEALTH, SHELL_HORIZONTAL_MARGIN, STORY_IMAGES, WELCOME_MESSAGES
 from scoundrel_tui.game import Card, GameState
 
 __all__ = ["ScoundrelApp", "main"]
@@ -62,7 +62,7 @@ class ScoundrelApp(App[None]):
     }
 
     #status {
-        height: 4;
+        height: 3;
         width: 1fr;
     }
 
@@ -100,7 +100,11 @@ class ScoundrelApp(App[None]):
 
     state: reactive[GameState] = reactive(GameState.fresh, recompose=False)
     pixel_art: reactive[bool] = reactive(False, recompose=False)
-    overlay: reactive[str | None] = reactive(None, recompose=False)
+    overlay: reactive[str | None] = reactive("welcome", recompose=False)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.welcome_message = random.choice(WELCOME_MESSAGES)
 
     def compose(self) -> ComposeResult:
         with Container(id="shell"):
@@ -157,9 +161,17 @@ class ScoundrelApp(App[None]):
         self.refresh_selection()
 
     def action_take_selected(self) -> None:
+        if self.overlay == "welcome":
+            self.overlay = None
+            self.refresh_board()
+            return
         self.action_take(self.state.selected_slot)
 
     def action_take(self, slot: int) -> None:
+        if self.overlay == "welcome":
+            self.overlay = None
+            self.refresh_board()
+            return
         self.state.take_slot(slot)
         self.refresh_board()
 
@@ -249,7 +261,12 @@ class ScoundrelApp(App[None]):
         overlay.update(self.render_overlay(self.overlay))
 
     def render_overlay(self, kind: str) -> RenderableType:
-        if kind == "win":
+        if kind == "welcome":
+            title = Text("WELCOME TO THE DUNGEON", style="bold #f1e5c8")
+            message = Text(f"{self.welcome_message}  Press Enter to begin.", style="#d2b98d")
+            border = "#b8a06d"
+            image = STORY_IMAGES["welcome"]
+        elif kind == "win":
             title = Text("YOU WIN", style="bold #8df59b")
             message = Text(f"Escaped with {self.state.health} health.  Score {self.state.score}.  N starts a new run.", style="#d2b98d")
             border = "#71d083"
@@ -315,10 +332,10 @@ class ScoundrelApp(App[None]):
 
     def weapon_status_value(self, weapon: str) -> RenderableType:
         table = Table.grid(expand=False, padding=(0, 1))
-        table.add_column(width=5)
+        table.add_column(width=3)
         table.add_column(no_wrap=True)
         table.add_row(
-            card_image(self.equipped_weapon_image(), width=4, height=2, content_scale=0.6),
+            card_image(self.equipped_weapon_image(), width=2, height=1, content_scale=0.8),
             self.status_value(weapon, "#d8cdb9"),
         )
         return table
