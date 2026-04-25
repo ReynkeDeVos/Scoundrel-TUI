@@ -86,7 +86,7 @@ WEAPON_IMAGES = card_asset_map(WEAPON_ASSET_FOLDER, range(2, 11))
 POTION_IMAGES = card_asset_map(POTION_ASSET_FOLDER, range(2, 11))
 PIXEL_WEAPON_IMAGES = card_asset_map(pixel_folder(WEAPON_ASSET_FOLDER), range(2, 11))
 PIXEL_POTION_IMAGES = card_asset_map(pixel_folder(POTION_ASSET_FOLDER), range(2, 11))
-BARE_HANDS_IMAGE = WEAPON_ASSET_FOLDER / "00-fist-human.png"
+BARE_HANDS_IMAGE = WEAPON_ASSET_FOLDER / "00-fist-human.avif"
 
 
 def asset_for(card: Card, *, pixel: bool = False) -> Path | None:

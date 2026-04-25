@@ -18,9 +18,9 @@ WELCOME_MESSAGES = (
     "The room is quiet. The deck is not.",
 )
 STORY_IMAGES = {
-    "welcome": ASSET_ROOT / "story" / "entry" / "trow_story_06-Temple_in_the_Deep.webp",
-    "death": ASSET_ROOT / "story" / "death" / "trow_story_02-The_Fall.jpg",
-    "win": ASSET_ROOT / "story" / "win" / "trow_intro_10.jpg",
+    "welcome": ASSET_ROOT / "story" / "entry" / "trow_story_06-Temple_in_the_Deep.avif",
+    "death": ASSET_ROOT / "story" / "death" / "trow_story_02-The_Fall.avif",
+    "win": ASSET_ROOT / "story" / "win" / "trow_intro_10.avif",
 }
 
 __all__ = [
