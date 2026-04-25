@@ -323,6 +323,21 @@ def test_monster_cards_label_effective_damage_as_monster_damage(monkeypatch) -> 
     assert "weapon damage" not in rendered
 
 
+def test_selected_card_panel_contains_visible_selected_label(monkeypatch) -> None:
+    monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
+    app = ScoundrelApp()
+    app._size = Size(220, 60)
+    app.state = GameState(
+        room=[Card(Suit.CLUBS, 9), Card(Suit.DIAMONDS, 5), None, None],
+        selected_slot=1,
+    )
+    console = Console(width=80, record=True)
+
+    console.print(app.card_panel(1, app.state.room[1]))
+
+    assert "SELECTED" in console.export_text()
+
+
 def test_quit_requires_confirmation() -> None:
     app = ScoundrelApp()
     app.refresh_board = lambda: None

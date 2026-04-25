@@ -843,14 +843,20 @@ class ScoundrelApp(App[None]):
         parts: list[RenderableType] = [
             label,
             kind,
-            card_art(card, path, width=image_width, height=image_height),
-            Align.center(Text(self.card_action_text(card), style="#c6b9a2")),
         ]
+        if selected:
+            parts.append(Align.center(Text(" SELECTED ", style="bold #070909 on #f1e5c8")))
+        parts.extend(
+            [
+                card_art(card, path, width=image_width, height=image_height),
+                Align.center(Text(self.card_action_text(card), style="#c6b9a2")),
+            ]
+        )
         body = self.fixed_card_body(parts, card_width, card_height)
         border = "bold #f1e5c8" if selected else self.kind_color(card)
         if pending:
             border = "#ffffff"
-        title = f" {index + 1} "
+        title = f" {index + 1} SELECTED " if selected else f" {index + 1} "
         return Panel(
             body,
             title=title,
