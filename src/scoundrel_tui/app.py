@@ -421,7 +421,8 @@ class ScoundrelApp(App[None]):
 
     #shell {
         layer: base;
-        padding: 1 5;
+        margin: 0 5;
+        padding: 1 0;
         layout: vertical;
     }
 
