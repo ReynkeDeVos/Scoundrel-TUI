@@ -25,12 +25,14 @@ from scoundrel_tui.artwork import (
     card_spacer,
 )
 from scoundrel_tui.config import (
+    DEFAULT_WIN_FLAVOR_TEXTS,
     DEATH_STORY_IMAGES,
     ENTRY_STORY_IMAGES,
     MAX_HEALTH,
     SHELL_HORIZONTAL_MARGIN,
     STORY_IMAGES,
     WELCOME_MESSAGES,
+    WIN_FLAVOR_TEXTS,
     WIN_STORY_IMAGES,
 )
 from scoundrel_tui.game import Card, GameState, Suit
@@ -115,6 +117,7 @@ class ScoundrelApp(App[None]):
         super().__init__()
         self.welcome_message = random.choice(WELCOME_MESSAGES)
         self.overlay_images: dict[str, Path] = {}
+        self.overlay_flavors: dict[str, str] = {}
         self.set_overlay("welcome")
 
     def compose(self) -> ComposeResult:
@@ -288,7 +291,10 @@ class ScoundrelApp(App[None]):
             border = "#b8a06d"
         elif kind == "win":
             title = Text("YOU WIN", style="bold #8df59b")
-            message = Text(f"Escaped with {self.state.health} health.  Score {self.state.score}.  N starts a new run.", style="#d2b98d")
+            message = Text(
+                f"{self.win_flavor_text()}  Score {self.state.score}.  N starts a new run.",
+                style="#d2b98d",
+            )
             border = "#71d083"
         else:
             title = Text("YOU DIED", style="bold #f05d4f")
@@ -311,6 +317,7 @@ class ScoundrelApp(App[None]):
     def set_overlay(self, kind: str | None) -> None:
         if kind and kind != self.overlay:
             self.overlay_images[kind] = self.random_story_image(kind)
+            self.overlay_flavors.pop(kind, None)
         self.overlay = kind
 
     def overlay_image(self, kind: str) -> Path:
@@ -327,6 +334,13 @@ class ScoundrelApp(App[None]):
         if pool:
             return random.choice(pool)
         return STORY_IMAGES[kind]
+
+    def win_flavor_text(self) -> str:
+        if "win" not in self.overlay_flavors:
+            image = self.overlay_image("win")
+            pool = WIN_FLAVOR_TEXTS.get(image.stem, DEFAULT_WIN_FLAVOR_TEXTS)
+            self.overlay_flavors["win"] = random.choice(pool)
+        return self.overlay_flavors["win"]
 
     def overlay_image_size(self, image: Path) -> tuple[int, int]:
         try:

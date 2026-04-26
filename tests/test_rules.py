@@ -13,6 +13,7 @@ from textual_image.renderable import tgp
 from scoundrel_tui.app import (
     Card,
     BARE_HANDS_IMAGE,
+    DEFAULT_WIN_FLAVOR_TEXTS,
     DEATH_STORY_IMAGES,
     ENTRY_STORY_IMAGES,
     GameState,
@@ -27,6 +28,7 @@ from scoundrel_tui.app import (
     Suit,
     WEAPON_IMAGES,
     WELCOME_MESSAGES,
+    WIN_FLAVOR_TEXTS,
     WIN_STORY_IMAGES,
     asset_for,
     cached_terminal_image,
@@ -215,6 +217,8 @@ def test_pixel_art_assets_are_mapped_by_value() -> None:
 def test_story_overlay_assets_are_available() -> None:
     assert set(STORY_IMAGES) == {"welcome", "death", "win"}
     assert all(message.strip() for message in WELCOME_MESSAGES)
+    assert all(message.strip() for message in DEFAULT_WIN_FLAVOR_TEXTS)
+    assert all(messages for messages in WIN_FLAVOR_TEXTS.values())
     for path in STORY_IMAGES.values():
         assert path.exists()
         with Image.open(path) as image:
@@ -243,6 +247,20 @@ def test_story_overlay_images_use_folder_pools_and_stay_stable(monkeypatch) -> N
 
     app.set_overlay("win")
     assert app.overlay_image("win") in set(WIN_STORY_IMAGES)
+
+
+def test_win_overlay_uses_image_flavor_and_score(monkeypatch) -> None:
+    monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
+    app = ScoundrelApp()
+    app.state = GameState(game_over=True, won=True, health=20, score=28)
+    app.set_overlay("win")
+    console = Console(width=120, record=True)
+
+    console.print(app.render_overlay("win"))
+    rendered = console.export_text()
+
+    assert "Score 28" in rendered
+    assert app.win_flavor_text() in rendered
 
 
 def test_portrait_story_images_use_vertical_overlay_slot() -> None:
@@ -299,6 +317,32 @@ def test_only_one_potion_heals_per_room() -> None:
 
     assert state.health == 18
     assert state.used_potion
+
+
+def test_winning_score_adds_final_potion_value_at_full_health() -> None:
+    state = GameState(
+        dungeon=[],
+        room=[Card(Suit.HEARTS, 8), None, None, None],
+        health=20,
+    )
+
+    state.take_slot(0)
+
+    assert state.won
+    assert state.score == 28
+
+
+def test_winning_score_is_positive_life_without_final_full_health_potion() -> None:
+    state = GameState(
+        dungeon=[],
+        room=[Card(Suit.DIAMONDS, 8), None, None, None],
+        health=20,
+    )
+
+    state.take_slot(0)
+
+    assert state.won
+    assert state.score == 20
 
 
 def test_card_panels_render_with_identical_height(monkeypatch) -> None:

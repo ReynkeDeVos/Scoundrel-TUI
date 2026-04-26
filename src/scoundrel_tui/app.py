@@ -18,12 +18,14 @@ from scoundrel_tui.artwork import (
     is_pixel_asset,
 )
 from scoundrel_tui.config import (
+    DEFAULT_WIN_FLAVOR_TEXTS,
     DEATH_STORY_IMAGES,
     ENTRY_STORY_IMAGES,
     MAX_HEALTH,
     SHELL_HORIZONTAL_MARGIN,
     STORY_IMAGES,
     WELCOME_MESSAGES,
+    WIN_FLAVOR_TEXTS,
     WIN_STORY_IMAGES,
 )
 from scoundrel_tui.game import Card, GameState, Suit
@@ -32,6 +34,7 @@ from scoundrel_tui.tui import ScoundrelApp, main
 __all__ = [
     "BARE_HANDS_IMAGE",
     "Card",
+    "DEFAULT_WIN_FLAVOR_TEXTS",
     "DEATH_STORY_IMAGES",
     "ENTRY_STORY_IMAGES",
     "GameState",
@@ -47,6 +50,7 @@ __all__ = [
     "Suit",
     "WEAPON_IMAGES",
     "WELCOME_MESSAGES",
+    "WIN_FLAVOR_TEXTS",
     "WIN_STORY_IMAGES",
     "asset_for",
     "cached_terminal_image",

@@ -83,6 +83,7 @@ class GameState:
     game_over: bool = False
     won: bool = False
     score: int = 0
+    last_card: Card | None = None
     selected_slot: int = 0
     pending_monster_slot: int | None = None
     confirm_new_game: bool = False
@@ -154,6 +155,7 @@ class GameState:
         if card is None:
             return
         self.room[slot] = None
+        self.last_card = card
         self.pending_monster_slot = None
         if card.kind == "Weapon":
             if self.weapon:
@@ -204,7 +206,10 @@ class GameState:
         self.game_over = True
         self.won = won
         if won:
-            self.score = self.health
+            potion_bonus = 0
+            if self.health == MAX_HEALTH and self.last_card and self.last_card.kind == "Potion":
+                potion_bonus = self.last_card.value
+            self.score = self.health + potion_bonus
             self.log.append(f"You escape the dungeon with {self.health} health.")
         else:
             remaining_monsters = [

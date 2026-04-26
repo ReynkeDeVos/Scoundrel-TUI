@@ -13,6 +13,18 @@ SHELL_HORIZONTAL_MARGIN = 9
 ENTRY_STORY_IMAGES = tuple(sorted(path for path in (ASSET_ROOT / "story" / "entry").glob("*") if path.is_file()))
 DEATH_STORY_IMAGES = tuple(sorted(path for path in (ASSET_ROOT / "story" / "death").glob("*") if path.is_file()))
 WIN_STORY_IMAGES = tuple(sorted(path for path in (ASSET_ROOT / "story" / "win").glob("*") if path.is_file()))
+WIN_FLAVOR_TEXTS = {
+    "trow_intro_10": (
+        "You stagger from the deep with the Orb of Scoundrel, barely alive, and home bells soon answer.",
+        "The dungeon spits you out wounded, but the Orb of Scoundrel shines all the way home.",
+        "You crawl into dawn clutching the Orb of Scoundrel, and by dusk your name is sung at home.",
+        "Barely breathing, you bear the Orb of Scoundrel home and are greeted as a legend.",
+    ),
+}
+DEFAULT_WIN_FLAVOR_TEXTS = (
+    "With the Orb of Scoundrel in hand, you limp from the last room into a hero's welcome.",
+    "One last breath carries you out of the depths; the Orb of Scoundrel carries you home.",
+)
 WELCOME_MESSAGES = (
     "The dungeon opens. Choose carefully.",
     "Four cards wait in the dark.",
@@ -39,4 +51,6 @@ __all__ = [
     "STORY_IMAGES",
     "WELCOME_MESSAGES",
     "WIN_STORY_IMAGES",
+    "WIN_FLAVOR_TEXTS",
+    "DEFAULT_WIN_FLAVOR_TEXTS",
 ]
