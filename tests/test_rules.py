@@ -1,5 +1,12 @@
+from pathlib import Path
+from typing import cast
+
 from PIL import Image
-from rich.console import Console
+from pytest import MonkeyPatch
+from rich.align import Align
+from rich.console import Console, Group, RenderableType
+from rich.panel import Panel
+from rich.text import Text
 from textual.geometry import Size
 from textual_image.renderable import tgp
 
@@ -26,6 +33,19 @@ from scoundrel_tui.app import (
     fitted_image,
     is_pixel_asset,
 )
+
+
+def required_asset(card: Card, *, pixel: bool = False) -> Path:
+    path = asset_for(card, pixel=pixel)
+    assert path is not None
+    return path
+
+
+def rendered_health_line(app: ScoundrelApp) -> Text:
+    panel = cast(Panel, app.render_health())
+    body = cast(Group, panel.renderable)
+    centered_line = cast(Align, body.renderables[1])
+    return cast(Text, centered_line.renderable)
 
 
 def test_deck_setup_matches_scoundrel_pdf() -> None:
@@ -86,12 +106,12 @@ def test_taking_monster_uses_weapon_by_default_when_possible() -> None:
 
 
 def test_monster_portraits_are_mapped_by_suit_and_value() -> None:
-    assert asset_for(Card(Suit.CLUBS, 2)).name.startswith("02-")
-    assert asset_for(Card(Suit.CLUBS, 13)).name.startswith("13-")
-    assert asset_for(Card(Suit.CLUBS, 14)).name.startswith("14-")
-    assert asset_for(Card(Suit.SPADES, 2)).name.startswith("02-")
-    assert asset_for(Card(Suit.SPADES, 13)).name.startswith("13-")
-    assert asset_for(Card(Suit.SPADES, 14)).name.startswith("14-")
+    assert required_asset(Card(Suit.CLUBS, 2)).name.startswith("02-")
+    assert required_asset(Card(Suit.CLUBS, 13)).name.startswith("13-")
+    assert required_asset(Card(Suit.CLUBS, 14)).name.startswith("14-")
+    assert required_asset(Card(Suit.SPADES, 2)).name.startswith("02-")
+    assert required_asset(Card(Suit.SPADES, 13)).name.startswith("13-")
+    assert required_asset(Card(Suit.SPADES, 14)).name.startswith("14-")
 
     for suit, portraits in MONSTER_PORTRAITS.items():
         assert set(portraits) == set(range(2, 15))
@@ -103,10 +123,10 @@ def test_weapon_and_potion_images_are_mapped_by_value() -> None:
     assert BARE_HANDS_IMAGE.exists()
     assert set(WEAPON_IMAGES) == set(range(2, 11))
     assert set(POTION_IMAGES) == set(range(2, 11))
-    assert asset_for(Card(Suit.DIAMONDS, 2)).name.startswith("02-")
-    assert asset_for(Card(Suit.DIAMONDS, 10)).name.startswith("10-")
-    assert asset_for(Card(Suit.HEARTS, 2)).name.startswith("02-")
-    assert asset_for(Card(Suit.HEARTS, 10)).name.startswith("10-")
+    assert required_asset(Card(Suit.DIAMONDS, 2)).name.startswith("02-")
+    assert required_asset(Card(Suit.DIAMONDS, 10)).name.startswith("10-")
+    assert required_asset(Card(Suit.HEARTS, 2)).name.startswith("02-")
+    assert required_asset(Card(Suit.HEARTS, 10)).name.startswith("10-")
 
     for value, path in {**WEAPON_IMAGES, **POTION_IMAGES}.items():
         assert path.exists(), f"value {value} item image missing: {path}"
@@ -186,15 +206,15 @@ def test_pixel_art_assets_are_mapped_by_value() -> None:
     for portraits in PIXEL_MONSTER_PORTRAITS.values():
         assert set(portraits) == set(range(2, 15))
 
-    assert asset_for(Card(Suit.CLUBS, 2), pixel=True).parent.name.startswith("pixel-")
-    assert asset_for(Card(Suit.SPADES, 14), pixel=True).parent.name.startswith("pixel-")
-    assert asset_for(Card(Suit.DIAMONDS, 10), pixel=True).parent.name.startswith("pixel-")
-    assert asset_for(Card(Suit.HEARTS, 10), pixel=True).parent.name.startswith("pixel-")
+    assert required_asset(Card(Suit.CLUBS, 2), pixel=True).parent.name.startswith("pixel-")
+    assert required_asset(Card(Suit.SPADES, 14), pixel=True).parent.name.startswith("pixel-")
+    assert required_asset(Card(Suit.DIAMONDS, 10), pixel=True).parent.name.startswith("pixel-")
+    assert required_asset(Card(Suit.HEARTS, 10), pixel=True).parent.name.startswith("pixel-")
 
 
 def test_story_overlay_assets_are_available() -> None:
     assert set(STORY_IMAGES) == {"welcome", "death", "win"}
-    assert WELCOME_MESSAGES
+    assert all(message.strip() for message in WELCOME_MESSAGES)
     for path in STORY_IMAGES.values():
         assert path.exists()
         with Image.open(path) as image:
@@ -354,12 +374,13 @@ def test_status_strong_kills_counts_only_jack_or_higher_monsters() -> None:
     console.print(app.strong_kills_status_value())
     rendered = console.export_text()
 
-    assert [line.rstrip() for line in rendered.splitlines()] == ["A♣ K♣ Q♣", "A♠ J♠"]
+    assert [line.rstrip() for line in rendered.splitlines()] == ["A♧K♧Q♧J♧", "A♤K♤Q♤J♤"]
     assert "10♠" not in rendered
     assert "K♦" not in rendered
 
     row = app.strong_kill_row(app.strong_monsters_killed(), suit=Suit.CLUBS)
     assert any("strike" in str(span.style) for span in row.spans)
+    assert any("#4b4540" in str(span.style) for span in row.spans)
 
 
 def test_status_health_bar_shows_selected_card_preview() -> None:
@@ -391,12 +412,14 @@ def test_status_row_renders_as_two_lines_when_images_are_off(monkeypatch) -> Non
     console.print(app.render_status())
     lines = [line for line in console.export_text().splitlines() if line.strip()]
 
-    assert len(lines) == 2
+    assert len(lines) == 3
     assert "Health" in lines[0]
     assert "Equipped weapon" in lines[0]
     assert "Weapon condition" in lines[0]
     assert "Remaining cards" in lines[0]
     assert "20/20" in lines[1]
+    assert "A♧K♧Q♧J♧" in lines[1]
+    assert "A♤K♤Q♤J♤" in lines[2]
 
 
 def test_equipped_weapon_status_uses_bare_hands_icon_by_default() -> None:
@@ -529,7 +552,7 @@ def test_quit_requires_confirmation() -> None:
     app = ScoundrelApp()
     app.refresh_board = lambda: None
 
-    app.action_quit()
+    app.request_quit()
 
     assert app.state.confirm_quit
     console = Console(width=100, record=True)
@@ -537,18 +560,18 @@ def test_quit_requires_confirmation() -> None:
     assert "Press Q again to confirm" in console.export_text()
 
 
-def test_quit_exits_immediately_after_death() -> None:
+def test_quit_exits_immediately_after_death(monkeypatch: MonkeyPatch) -> None:
     app = ScoundrelApp()
     exited = False
 
-    def exit_once() -> None:
+    def exit_once(result: None = None, return_code: int = 0, message: RenderableType | None = None) -> None:
         nonlocal exited
         exited = True
 
-    app.exit = exit_once
+    monkeypatch.setattr(app, "exit", exit_once)
     app.state = GameState(game_over=True, won=False)
 
-    app.action_quit()
+    app.request_quit()
 
     assert exited
     assert not app.state.confirm_quit
@@ -563,7 +586,7 @@ def test_health_preview_uses_marker_segments() -> None:
         health=12,
     )
 
-    line = app.render_health().renderable.renderables[1].renderable
+    line = rendered_health_line(app)
     assert line.plain == "12/20  ██████▏████████▌▌▌▌▌▌▌░░░░░░░░░░░░░░"
     styles = {span.style for span in line.spans}
     assert "bold #ff7a1a" in styles
@@ -580,7 +603,7 @@ def test_zero_damage_weapon_preview_only_marks_barehand_position() -> None:
         health=13,
     )
 
-    line = app.render_health().renderable.renderables[1].renderable
+    line = rendered_health_line(app)
     assert "▌" not in line.plain
     assert "▏" in line.plain
     styles = {span.style for span in line.spans}

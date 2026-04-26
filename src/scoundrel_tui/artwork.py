@@ -21,31 +21,35 @@ from scoundrel_tui.config import (
 from scoundrel_tui.game import Card, Suit
 
 
-def enable_tmux_tgp_passthrough() -> None:
-    if not os.environ.get("TMUX") or getattr(tgp, "_scoundrel_tmux_patch", False):
-        return
+_TGP_MESSAGE_START = "\x1b_G"
+_TGP_MESSAGE_END = "\x1b\\"
+_tmux_tgp_patched = False
 
-    original_send = tgp._send_tgp_message
+
+def enable_tmux_tgp_passthrough() -> None:
+    global _tmux_tgp_patched
+
+    if not os.environ.get("TMUX") or _tmux_tgp_patched:
+        return
 
     def send_tgp_message_tmux(*, payload: str | None = None, **kwargs: int | str | None) -> None:
         import sys
 
         if not sys.__stdout__:
-            raise tgp.TerminalError("sys.__stdout__ is None")
+            raise RuntimeError("sys.__stdout__ is None")
 
         parts = [
-            tgp._TGP_MESSAGE_START,
+            _TGP_MESSAGE_START,
             ",".join(f"{k}={v}" for k, v in kwargs.items() if v is not None),
             f";{payload}" if payload else "",
-            tgp._TGP_MESSAGE_END,
+            _TGP_MESSAGE_END,
         ]
         sequence = "".join(parts).replace("\x1b", "\x1b\x1b")
         sys.__stdout__.write(f"\x1bPtmux;\x1b{sequence}\x1b\\")
         sys.__stdout__.flush()
 
-    tgp._send_tgp_message = send_tgp_message_tmux
-    tgp._scoundrel_tmux_patch = True
-    tgp._scoundrel_original_send_tgp_message = original_send
+    setattr(tgp, "_send_tgp_message", send_tgp_message_tmux)
+    _tmux_tgp_patched = True
 
 
 enable_tmux_tgp_passthrough()

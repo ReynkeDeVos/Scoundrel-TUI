@@ -104,7 +104,7 @@ class ScoundrelApp(App[None]):
         Binding("a", "avoid", "Avoid"),
         Binding("p", "toggle_pixel_art", "Pixel Art"),
         Binding("n", "new_game", "New"),
-        Binding("q", "quit", "Quit"),
+        Binding("q", "request_quit", "Quit"),
     ]
 
     state: reactive[GameState] = reactive(GameState.fresh, recompose=False)
@@ -231,7 +231,10 @@ class ScoundrelApp(App[None]):
             self.state.log.append("You cannot avoid this room right now.")
         self.refresh_board()
 
-    def action_quit(self) -> None:
+    def action_request_quit(self) -> None:
+        self.request_quit()
+
+    def request_quit(self) -> None:
         if self.state.game_over:
             self.exit()
             return
@@ -348,7 +351,7 @@ class ScoundrelApp(App[None]):
         table.add_row(
             self.status_section("Health", self.health_status_value()),
             self.weapon_status_section(weapon, condition),
-            self.status_section("Strong kills", self.strong_kills_status_value()),
+            self.status_section("Elite kills", self.strong_kills_status_value()),
             self.status_section("Remaining cards", self.status_value(str(remaining), "#d8cdb9")),
         )
         return Align.center(table, vertical="middle")
@@ -394,8 +397,6 @@ class ScoundrelApp(App[None]):
 
     def strong_kills_status_value(self) -> RenderableType:
         slain = self.strong_monsters_killed()
-        if not slain:
-            return self.status_value("-", "#8f8679")
         table = Table.grid(expand=False)
         table.add_column(no_wrap=True)
         table.add_row(self.strong_kill_row(slain, suit=Suit.CLUBS))
@@ -406,13 +407,20 @@ class ScoundrelApp(App[None]):
         symbols: list[tuple[str, str]] = []
         if prefix:
             symbols.append((prefix, "bold #d8cdb9"))
-        titles = [card.title for card in slain if card.suit == suit]
-        if not titles:
-            symbols.append(("-", "bold #8f8679"))
-        for index, title in enumerate(titles):
-            suffix = " " if index < len(titles) - 1 else ""
-            symbols.append((f"{title}{suffix}", "strike bold #d9a15c"))
+        slain_values = {card.value for card in slain if card.suit == suit}
+        for value in (14, 13, 12, 11):
+            card = Card(suit, value)
+            style = "strike bold #d9a15c" if value in slain_values else "bold #4b4540"
+            symbols.append((self.elite_kill_symbol(card), style))
+        symbols.append((" ", "#4b4540"))
         return Text.assemble(*symbols, no_wrap=True, overflow="ellipsis")
+
+    def elite_kill_symbol(self, card: Card) -> str:
+        suit_glyphs = {
+            Suit.CLUBS: "♧",
+            Suit.SPADES: "♤",
+        }
+        return f"{card.rank}{suit_glyphs[card.suit]}"
 
     def strong_monsters_killed(self) -> list[Card]:
         killed = [
@@ -523,7 +531,7 @@ class ScoundrelApp(App[None]):
                 card_image(asset_for(card, pixel=self.pixel_art), width=12, height=8),
             )
             border = "#5aa6d6"
-        rows = []
+        rows: list[RenderableType] = []
         for monster in self.state.weapon_stack[-6:]:
             rows.append(Text(f"{monster.title:<3} slain value {monster.value}", style="#d9a15c"))
         if not rows:
@@ -584,7 +592,6 @@ class ScoundrelApp(App[None]):
         return max(96, outer_width - 2), max(26, self.size.height - 10)
 
     def card_panel(self, index: int, card: Card | None) -> RenderableType:
-        selected = index == self.state.selected_slot
         pending = index == self.state.pending_monster_slot
         card_width, card_height, image_width, image_height = self.card_dimensions()
         if card is None:

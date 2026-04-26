@@ -31,6 +31,18 @@ SUIT_STYLE = {
 RANK_NAMES = {11: "J", 12: "Q", 13: "K", 14: "A"}
 
 
+def _card_list() -> list[Card]:
+    return []
+
+
+def _room_slots() -> list[Card | None]:
+    return [None, None, None, None]
+
+
+def _message_log() -> list[str]:
+    return []
+
+
 @dataclass(frozen=True)
 class Card:
     suit: Suit
@@ -59,11 +71,11 @@ class Card:
 
 @dataclass
 class GameState:
-    dungeon: list[Card] = field(default_factory=list)
-    room: list[Card | None] = field(default_factory=lambda: [None, None, None, None])
-    discard: list[Card] = field(default_factory=list)
+    dungeon: list[Card] = field(default_factory=_card_list)
+    room: list[Card | None] = field(default_factory=_room_slots)
+    discard: list[Card] = field(default_factory=_card_list)
     weapon: Card | None = None
-    weapon_stack: list[Card] = field(default_factory=list)
+    weapon_stack: list[Card] = field(default_factory=_card_list)
     health: int = MAX_HEALTH
     turn_taken: int = 0
     used_potion: bool = False
@@ -76,7 +88,7 @@ class GameState:
     confirm_new_game: bool = False
     confirm_quit: bool = False
     banner_tick: int = 0
-    log: list[str] = field(default_factory=list)
+    log: list[str] = field(default_factory=_message_log)
 
     @classmethod
     def fresh(cls) -> GameState:
@@ -149,7 +161,7 @@ class GameState:
                 self.discard.extend(self.weapon_stack)
             self.weapon = card
             self.weapon_stack = []
-            self.log.append(f"You bind yourself to {card.title}. The old blade is discarded.")
+            self.log.append(f"You bind yourself to {card.title}. The old weapon is discarded.")
         elif card.kind == "Potion":
             if self.used_potion:
                 self.discard.append(card)
@@ -176,7 +188,7 @@ class GameState:
         self.turn_taken += 1
         self.avoided_last_room = False
         if self.turn_taken >= 3 or sum(card is not None for card in self.room) <= 1:
-            self.log.append("The last card remains in place as the room breathes again.")
+            self.log.append("The last card remains in place as the room fills up again.")
             self.fill_room()
         elif not any(self.room) and not self.dungeon:
             self.finish(True)
