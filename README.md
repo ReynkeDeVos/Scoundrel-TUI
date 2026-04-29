@@ -35,7 +35,7 @@ uv run scoundrel-tui
 
 - `1` to `4`: take a card slot
 - `Left` / `Right`: move selection
-- `Enter`: take the selected card
+- `Enter`: take the selected card (defaults to using weapon)
   - `W`: explicitly fight a monster with the equipped weapon
   - `B`: explicitly fight a monster barehanded
 - `A`: avoid the room when allowed
