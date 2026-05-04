@@ -349,7 +349,7 @@ class ScoundrelApp(App[None]):
         except OSError:
             return 58, 16
         if height > width:
-            return 34, 22
+            return 24, 16
         return 58, 16
 
     def death_overlay_image(self) -> Path:

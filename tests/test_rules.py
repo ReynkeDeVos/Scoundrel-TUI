@@ -263,10 +263,10 @@ def test_win_overlay_uses_image_flavor_and_score(monkeypatch) -> None:
     assert app.win_flavor_text() in rendered
 
 
-def test_portrait_story_images_use_vertical_overlay_slot() -> None:
+def test_portrait_story_images_fit_fixed_overlay_height() -> None:
     app = ScoundrelApp()
 
-    assert app.overlay_image_size(WIN_STORY_IMAGES[0]) == (34, 22)
+    assert app.overlay_image_size(WIN_STORY_IMAGES[0]) == (24, 16)
 
 
 def test_enter_does_not_cycle_game_over_overlay_image(monkeypatch) -> None:
