@@ -43,6 +43,10 @@ def required_asset(card: Card, *, pixel: bool = False) -> Path:
     return path
 
 
+def set_app_size(app: ScoundrelApp, size: Size) -> None:
+    object.__setattr__(app, "_size", size)
+
+
 def rendered_health_line(app: ScoundrelApp) -> Text:
     panel = cast(Panel, app.render_health())
     body = cast(Group, panel.renderable)
@@ -176,13 +180,17 @@ def test_pixel_art_scaling_uses_sharp_cache_variant() -> None:
     assert "smooth" in smooth.name
 
 
-def test_terminal_images_are_reused_between_room_renders(monkeypatch) -> None:
+def test_terminal_images_are_reused_between_room_renders(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "kitty")
     cached_terminal_image.cache_clear()
-    calls = []
-    monkeypatch.setattr(tgp, "_send_tgp_message", lambda **kwargs: calls.append(kwargs))
+    calls: list[dict[str, object]] = []
+
+    def record_tgp_message(**kwargs: object) -> None:
+        calls.append(kwargs)
+
+    monkeypatch.setattr(tgp, "_send_tgp_message", record_tgp_message)
     app = ScoundrelApp()
-    app._size = Size(220, 60)
+    set_app_size(app, Size(220, 60))
     app.state = GameState(
         room=[
             Card(Suit.CLUBS, 8),
@@ -234,7 +242,7 @@ def test_story_overlay_assets_are_available() -> None:
             image.verify()
 
 
-def test_story_overlay_images_use_folder_pools_and_stay_stable(monkeypatch) -> None:
+def test_story_overlay_images_use_folder_pools_and_stay_stable(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
     app = ScoundrelApp()
 
@@ -249,7 +257,7 @@ def test_story_overlay_images_use_folder_pools_and_stay_stable(monkeypatch) -> N
     assert app.overlay_image("win") in set(WIN_STORY_IMAGES)
 
 
-def test_win_overlay_uses_image_flavor_and_score(monkeypatch) -> None:
+def test_win_overlay_uses_image_flavor_and_score(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
     app = ScoundrelApp()
     app.state = GameState(game_over=True, won=True, health=20, score=28)
@@ -259,17 +267,113 @@ def test_win_overlay_uses_image_flavor_and_score(monkeypatch) -> None:
     console.print(app.render_overlay("win"))
     rendered = console.export_text()
 
-    assert "Score 28" in rendered
+    assert "SCORE 28" in rendered
     assert app.win_flavor_text() in rendered
+    assert "The Orb is yours" in rendered
+    assert "[N] new run" in rendered
+    assert "[Q] quit" in rendered
+    assert rendered.index(app.win_flavor_text()) < rendered.index("SCORE 28")
+    assert rendered.index("SCORE 28") < rendered.index("[N] new run")
+
+
+def test_death_overlay_shows_score_and_next_actions(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
+    app = ScoundrelApp()
+    app.state = GameState(game_over=True, won=False, score=-37)
+    app.set_overlay("death")
+    console = Console(width=120, record=True)
+
+    console.print(app.render_overlay("death"))
+    rendered = console.export_text()
+
+    assert "The dungeon keeps its debt" in rendered
+    assert "Remaining monsters are counted against you." in rendered
+    assert "FINAL SCORE -37" in rendered
+    assert "[N] new run" in rendered
+    assert "[Q] quit" in rendered
+    assert rendered.index("Remaining monsters are counted against you.") < rendered.index("FINAL SCORE -37")
+    assert rendered.index("FINAL SCORE -37") < rendered.index("[N] new run")
+
+
+def test_welcome_overlay_teaches_without_popups(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
+    app = ScoundrelApp()
+    console = Console(width=120, record=True)
+
+    console.print(app.render_overlay("welcome"))
+    rendered = console.export_text()
+
+    assert "Scoundrel" in rendered
+    assert "Scoundrel run" not in rendered
+    assert app.welcome_message in rendered
+    assert "[Enter] begin" in rendered
+    assert "[Q] quit" in rendered
+
+
+def test_overlay_action_keys_use_footer_style() -> None:
+    app = ScoundrelApp()
+
+    for source in ["[Enter] begin   [Q] quit", "[N] new run   [Q] quit"]:
+        action = app.overlay_action_text(source)
+
+        assert action.plain == source
+        assert "#9e8454" in {str(span.style) for span in action.spans}
+        assert "#595959" in {str(span.style) for span in action.spans}
 
 
 def test_portrait_story_images_fit_fixed_overlay_height() -> None:
     app = ScoundrelApp()
 
-    assert app.overlay_image_size(WIN_STORY_IMAGES[0]) == (24, 16)
+    assert app.overlay_image_size(WIN_STORY_IMAGES[0]) == (18, 11)
 
 
-def test_enter_does_not_cycle_game_over_overlay_image(monkeypatch) -> None:
+def test_story_overlay_expands_on_larger_terminals() -> None:
+    app = ScoundrelApp()
+    set_app_size(app, Size(120, 40))
+
+    assert app.overlay_dimensions() == (100, 30)
+    assert app.overlay_image_size(WIN_STORY_IMAGES[0]) == (26, 16)
+    assert app.overlay_image_size(DEATH_STORY_IMAGES[0]) == (74, 16)
+
+
+def test_end_state_overlays_fit_fixed_panel_height(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
+    app = ScoundrelApp()
+    console = Console(width=82, record=True)
+
+    for kind, score in [("win", 28), ("death", -37)]:
+        app.state = GameState(game_over=True, won=kind == "win", score=score)
+        app.set_overlay(kind)
+        rendered_lines = console.render_lines(app.render_overlay(kind), console.options.update(width=82))
+        console.begin_capture()
+        console.print(app.render_overlay(kind))
+        rendered = console.end_capture()
+
+        assert len(rendered_lines) <= 24
+        assert "[N] new run" in rendered
+        assert "[Q] quit" in rendered
+
+
+def test_end_state_overlays_fit_expanded_panel_height(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
+    app = ScoundrelApp()
+    set_app_size(app, Size(120, 40))
+    console = Console(width=100, record=True)
+
+    for kind, score in [("win", 28), ("death", -37)]:
+        app.state = GameState(game_over=True, won=kind == "win", score=score)
+        app.set_overlay(kind)
+        rendered_lines = console.render_lines(app.render_overlay(kind), console.options.update(width=100))
+        console.begin_capture()
+        console.print(app.render_overlay(kind))
+        rendered = console.end_capture()
+
+        assert len(rendered_lines) <= 30
+        assert "[N] new run" in rendered
+        assert "[Q] quit" in rendered
+
+
+def test_enter_does_not_cycle_game_over_overlay_image(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
     app = ScoundrelApp()
     app.refresh_board = lambda: None
@@ -282,7 +386,7 @@ def test_enter_does_not_cycle_game_over_overlay_image(monkeypatch) -> None:
     assert app.death_overlay_image() == image
 
 
-def test_story_overlays_render_expected_titles(monkeypatch) -> None:
+def test_story_overlays_render_expected_titles(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
     app = ScoundrelApp()
     console = Console(width=120, record=True)
@@ -345,16 +449,16 @@ def test_winning_score_is_positive_life_without_final_full_health_potion() -> No
     assert state.score == 20
 
 
-def test_card_panels_render_with_identical_height(monkeypatch) -> None:
+def test_card_panels_render_with_identical_height(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
     app = ScoundrelApp()
-    app._size = Size(220, 60)
+    set_app_size(app, Size(220, 60))
     app.state = GameState(
         room=[Card(Suit.CLUBS, 8), Card(Suit.DIAMONDS, 5), Card(Suit.HEARTS, 6), None],
     )
     console = Console(width=220, record=True)
 
-    heights = []
+    heights: list[int] = []
     for index, card in enumerate(app.state.room):
         lines = console.render_lines(app.card_panel(index, card), console.options.update(width=60))
         heights.append(len(lines))
@@ -440,11 +544,11 @@ def test_status_health_bar_shows_selected_card_preview() -> None:
     assert line.plain == "12/20 ███▏████▌▌▌▌░░░░░░░░"
     styles = {span.style for span in line.spans}
     assert "bold #ff7a1a" in styles
-    assert "bold #ffffff" in styles
+    assert "bold #f1e5c8" in styles
     assert "#71d083" in styles
 
 
-def test_status_row_renders_as_two_lines_when_images_are_off(monkeypatch) -> None:
+def test_status_row_renders_as_two_lines_when_images_are_off(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
     app = ScoundrelApp()
     app.state = GameState(
@@ -490,7 +594,7 @@ def test_equipped_weapon_status_ignores_pixel_art_mode() -> None:
 
 def test_estimated_room_size_accounts_for_shell_margin() -> None:
     app = ScoundrelApp()
-    app._size = Size(180, 50)
+    set_app_size(app, Size(180, 50))
 
     width, height = app.estimated_room_size()
 
@@ -498,10 +602,10 @@ def test_estimated_room_size_accounts_for_shell_margin() -> None:
     assert height == 40
 
 
-def test_monster_cards_label_effective_damage_as_monster_damage(monkeypatch) -> None:
+def test_monster_cards_label_effective_damage_number_first(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
     app = ScoundrelApp()
-    app._size = Size(220, 60)
+    set_app_size(app, Size(220, 60))
     app.state = GameState(
         room=[Card(Suit.CLUBS, 9), None, None, None],
         weapon=Card(Suit.DIAMONDS, 5),
@@ -510,14 +614,14 @@ def test_monster_cards_label_effective_damage_as_monster_damage(monkeypatch) -> 
 
     console.print(app.card_panel(0, app.state.room[0]))
     rendered = console.export_text()
-    assert "monster damage 4" in rendered
+    assert "DMG 4  weapon" in rendered
     assert "weapon damage" not in rendered
 
 
-def test_selected_card_panel_uses_quiet_selection_marker(monkeypatch) -> None:
+def test_selected_card_panel_uses_quiet_selection_marker(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
     app = ScoundrelApp()
-    app._size = Size(220, 60)
+    set_app_size(app, Size(220, 60))
     app.state = GameState(
         room=[Card(Suit.CLUBS, 9), Card(Suit.DIAMONDS, 5), None, None],
         selected_slot=1,
@@ -529,14 +633,34 @@ def test_selected_card_panel_uses_quiet_selection_marker(monkeypatch) -> None:
 
     assert "SELECTED" not in rendered
     assert "◆" in rendered
-    assert "│ ┌" in rendered
-    assert "┐ │" in rendered
+    assert "EQUIP 5" in rendered
+    assert "│ ┌" not in rendered
+    assert "┐ │" not in rendered
 
 
-def test_card_kind_appears_on_same_line_as_rank(monkeypatch) -> None:
+def test_selected_card_title_marker_does_not_shift_slot_number(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
     app = ScoundrelApp()
-    app._size = Size(220, 60)
+    set_app_size(app, Size(220, 60))
+    app.state = GameState(room=[None, Card(Suit.DIAMONDS, 5), None, None])
+    console = Console(width=80, record=True)
+
+    console.begin_capture()
+    console.print(app.card_panel(1, app.state.room[1], selected=False))
+    unselected_title = console.end_capture().splitlines()[0]
+    console.begin_capture()
+    console.print(app.card_panel(1, app.state.room[1], selected=True))
+    selected_title = console.end_capture().splitlines()[0]
+
+    assert "◆" not in unselected_title
+    assert "◆" in selected_title
+    assert unselected_title.index("2") == selected_title.index("2")
+
+
+def test_card_kind_appears_on_same_line_as_rank(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
+    app = ScoundrelApp()
+    set_app_size(app, Size(220, 60))
     app.state = GameState(room=[Card(Suit.DIAMONDS, 2), None, None, None])
     console = Console(width=80, record=True)
 
@@ -545,10 +669,10 @@ def test_card_kind_appears_on_same_line_as_rank(monkeypatch) -> None:
     assert "2♦  WEAPON" in console.export_text()
 
 
-def test_selected_and_unselected_card_cells_keep_same_height(monkeypatch) -> None:
+def test_selected_and_unselected_card_cells_keep_same_height(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
     app = ScoundrelApp()
-    app._size = Size(220, 60)
+    set_app_size(app, Size(220, 60))
     app.state = GameState(
         room=[Card(Suit.CLUBS, 9), Card(Suit.DIAMONDS, 5), None, None],
         selected_slot=1,
@@ -577,10 +701,10 @@ def test_monster_border_style_tracks_default_health_damage() -> None:
     assert app.monster_damage_style(Card(Suit.CLUBS, 10)) == "bold #ff3b30"
 
 
-def test_selected_lethal_card_frame_shows_quiet_warning(monkeypatch) -> None:
+def test_selected_lethal_card_frame_shows_quiet_warning(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("SCOUNDREL_IMAGE_MODE", "off")
     app = ScoundrelApp()
-    app._size = Size(220, 60)
+    set_app_size(app, Size(220, 60))
     app.state = GameState(
         room=[Card(Suit.CLUBS, 10), None, None, None],
         health=10,
@@ -589,11 +713,12 @@ def test_selected_lethal_card_frame_shows_quiet_warning(monkeypatch) -> None:
 
     console.print(app.card_cell(0, app.state.room[0]))
 
-    assert "lethal" in console.export_text()
+    assert "LETHAL" in console.export_text()
 
 
 def test_quit_requires_confirmation() -> None:
     app = ScoundrelApp()
+    app.set_overlay(None)
     app.refresh_board = lambda: None
 
     app.request_quit()
@@ -602,6 +727,23 @@ def test_quit_requires_confirmation() -> None:
     console = Console(width=100, record=True)
     console.print(app.render_prompt())
     assert "Press Q again to confirm" in console.export_text()
+
+
+def test_quit_exits_immediately_from_welcome_overlay(monkeypatch: MonkeyPatch) -> None:
+    app = ScoundrelApp()
+    exited = False
+
+    def exit_once(result: None = None, return_code: int = 0, message: RenderableType | None = None) -> None:
+        nonlocal exited
+        exited = True
+
+    monkeypatch.setattr(app, "exit", exit_once)
+
+    app.request_quit()
+
+    assert exited
+    assert app.overlay == "welcome"
+    assert not app.state.confirm_quit
 
 
 def test_quit_exits_immediately_after_death(monkeypatch: MonkeyPatch) -> None:
@@ -634,7 +776,7 @@ def test_health_preview_uses_marker_segments() -> None:
     assert line.plain == "12/20  ██████▏████████▌▌▌▌▌▌▌░░░░░░░░░░░░░░"
     styles = {span.style for span in line.spans}
     assert "bold #ff7a1a" in styles
-    assert "bold #ffffff" in styles
+    assert "bold #f1e5c8" in styles
     assert "#71d083" in styles
 
 
@@ -651,5 +793,5 @@ def test_zero_damage_weapon_preview_only_marks_barehand_position() -> None:
     assert "▌" not in line.plain
     assert "▏" in line.plain
     styles = {span.style for span in line.spans}
-    assert "bold #ffffff" in styles
+    assert "bold #f1e5c8" in styles
     assert "#71d083" in styles

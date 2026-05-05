@@ -42,3 +42,8 @@ htmlcov/
 *~
 .DS_Store
 Thumbs.db
+
+# Impeccable design test
+.impeccable
+DESIGN.md
+PRODUCT.md
