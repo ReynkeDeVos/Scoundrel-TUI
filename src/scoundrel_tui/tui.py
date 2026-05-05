@@ -39,13 +39,52 @@ from scoundrel_tui.game import Card, GameState, Suit
 
 __all__ = ["ScoundrelApp", "main"]
 
+DUNGEON_BLACK = "#070909"
+PARCHMENT_TEXT = "#d8cdb9"
+PARCHMENT_BRIGHT = "#f1e5c8"
+PARCHMENT_MUTED = "#d2b98d"
+ASH_LABEL = "#8f8679"
+ASH_LOG = "#9f9688"
+EMBER_GOLD = "#f8d27d"
+BRASS_BORDER = "#b8a06d"
+COPPER_LABEL = "#9e8454"
+DULL_COPPER = "#604c37"
+MONSTER_RED = "#f05d4f"
+LETHAL_RED = "#ff3b30"
+WARNING_RED = "#d9695d"
+WEAPON_BLUE = "#74b7e8"
+WEAPON_FOCUS_BLUE = "#95c7ff"
+WEAPON_BORDER_BLUE = "#5aa6d6"
+POTION_GREEN = "#71d083"
+WIN_GREEN = "#8df59b"
+POTION_PREVIEW_GREEN = "#b8ff7a"
+DANGER_ORANGE = "#ff7a1a"
+DAMAGE_AMBER = "#d9a15c"
+EMPTY_BORDER = "#2c3030"
+DEAD_CELL = "#323232"
+QUIET_TEXT = "#595959"
+INACTIVE_MARK = "#4b4540"
+CARD_META = "#71685c"
+ACTION_TEXT = "#c6b9a2"
+CONFIRM_TEXT = "#c9a86a"
+OVERLAY_MIN_WIDTH = 82
+OVERLAY_MIN_HEIGHT = 24
+OVERLAY_MAX_WIDTH = 100
+OVERLAY_MAX_HEIGHT = 30
+OVERLAY_EDGE_GUTTER = 4
+OVERLAY_VERTICAL_GUTTER = 2
+OVERLAY_MIN_IMAGE_HEIGHT = 11
+OVERLAY_MAX_IMAGE_HEIGHT = 16
+OVERLAY_MIN_LANDSCAPE_IMAGE_WIDTH = 58
+OVERLAY_MAX_LANDSCAPE_IMAGE_WIDTH = 74
+
 
 class ScoundrelApp(App[None]):
     CSS = """
     Screen {
         layers: base overlay;
-        background: #070909;
-        color: #d8cdb9;
+        background: __DUNGEON_BLACK__;
+        color: __PARCHMENT_TEXT__;
     }
 
     #shell {
@@ -63,8 +102,8 @@ class ScoundrelApp(App[None]):
     }
 
     #overlay {
-        width: 82;
-        height: 24;
+        width: __OVERLAY_MIN_WIDTH__;
+        height: __OVERLAY_MIN_HEIGHT__;
     }
 
     #main {
@@ -91,7 +130,11 @@ class ScoundrelApp(App[None]):
         height: 3;
         width: 1fr;
     }
-    """.replace("__SHELL_HORIZONTAL_MARGIN__", str(SHELL_HORIZONTAL_MARGIN))
+    """.replace("__SHELL_HORIZONTAL_MARGIN__", str(SHELL_HORIZONTAL_MARGIN)).replace(
+        "__DUNGEON_BLACK__", DUNGEON_BLACK
+    ).replace("__PARCHMENT_TEXT__", PARCHMENT_TEXT).replace(
+        "__OVERLAY_MIN_WIDTH__", str(OVERLAY_MIN_WIDTH)
+    ).replace("__OVERLAY_MIN_HEIGHT__", str(OVERLAY_MIN_HEIGHT))
 
     BINDINGS = [
         Binding("1", "take(0)", "Slot 1"),
@@ -137,7 +180,9 @@ class ScoundrelApp(App[None]):
 
     def on_resize(self, event: events.Resize) -> None:
         self.refresh_board()
+        self.refresh_overlay()
         self.call_after_refresh(self.refresh_board)
+        self.call_after_refresh(self.refresh_overlay)
 
     def action_toggle_pixel_art(self) -> None:
         self.state.confirm_new_game = False
@@ -238,6 +283,9 @@ class ScoundrelApp(App[None]):
         self.request_quit()
 
     def request_quit(self) -> None:
+        if self.overlay == "welcome":
+            self.exit()
+            return
         if self.state.game_over:
             self.exit()
             return
@@ -282,37 +330,97 @@ class ScoundrelApp(App[None]):
             overlay.update("")
             return
         host.display = True
+        overlay_width, overlay_height = self.overlay_dimensions()
+        overlay.styles.width = overlay_width
+        overlay.styles.height = overlay_height
         overlay.update(self.render_overlay(self.overlay))
 
     def render_overlay(self, kind: str) -> RenderableType:
-        if kind == "welcome":
-            title = Text("WELCOME TO THE DUNGEON", style="bold #f1e5c8")
-            message = Text(f"{self.welcome_message}  Press Enter to begin.", style="#d2b98d")
-            border = "#b8a06d"
-        elif kind == "win":
-            title = Text("YOU WIN", style="bold #8df59b")
-            message = Text(
-                f"{self.win_flavor_text()}  Score {self.state.score}.  N starts a new run.",
-                style="#d2b98d",
-            )
-            border = "#71d083"
-        else:
-            title = Text("YOU DIED", style="bold #f05d4f")
-            message = Text(f"Final score {self.state.score}.  N starts a new run.  Q quits.", style="#d2b98d")
-            border = "#f05d4f"
+        title, kicker, message, metric, action, border, title_style = self.overlay_copy(kind)
         image = self.overlay_image(kind)
         image_width, image_height = self.overlay_image_size(image)
+        footer: list[RenderableType] = [Align.center(Text(message, style=PARCHMENT_MUTED, justify="center")), Text("")]
+        if metric:
+            footer.append(Align.center(Text(metric, style=f"bold {EMBER_GOLD}", justify="center")))
+            footer.append(Text(""))
+        footer.append(Align.center(self.overlay_action_text(action)))
 
         body = Group(
             Text(""),
-            Align.center(title),
+            *self.overlay_heading(kicker),
+            Align.center(Text(title, style=title_style)),
             Text(""),
-            Align.center(card_image(image if image.exists() else None, width=image_width, height=image_height)),
+            Align.center(
+                card_image(image if image.exists() else None, width=image_width, height=image_height),
+                vertical="middle",
+                width=image_width,
+                height=image_height,
+            ),
             Text(""),
-            Align.center(message),
+            *footer,
             Text(""),
         )
         return Panel(body, border_style=border, box=box.SQUARE)
+
+    def overlay_heading(self, kicker: str) -> list[RenderableType]:
+        if not kicker:
+            return []
+        return [Align.center(Text(kicker, style=ASH_LABEL))]
+
+    def overlay_action_text(self, action: str) -> Text:
+        if action.startswith("[Enter]"):
+            return Text.assemble(
+                ("[Enter]", COPPER_LABEL),
+                (" begin   ", QUIET_TEXT),
+                ("[Q]", COPPER_LABEL),
+                (" quit", QUIET_TEXT),
+                no_wrap=True,
+                overflow="ellipsis",
+            )
+        return Text.assemble(
+            ("[N]", COPPER_LABEL),
+            (" new run   ", QUIET_TEXT),
+            ("[Q]", COPPER_LABEL),
+            (" quit", QUIET_TEXT),
+            no_wrap=True,
+            overflow="ellipsis",
+        )
+
+    def overlay_dimensions(self) -> tuple[int, int]:
+        width = min(OVERLAY_MAX_WIDTH, max(OVERLAY_MIN_WIDTH, self.size.width - OVERLAY_EDGE_GUTTER))
+        height = min(OVERLAY_MAX_HEIGHT, max(OVERLAY_MIN_HEIGHT, self.size.height - OVERLAY_VERTICAL_GUTTER))
+        return width, height
+
+    def overlay_copy(self, kind: str) -> tuple[str, str, str, str, str, str, str]:
+        if kind == "welcome":
+            return (
+                "WELCOME TO THE DUNGEON",
+                "Scoundrel",
+                self.welcome_message,
+                "",
+                "[Enter] begin   [Q] quit",
+                BRASS_BORDER,
+                f"bold {PARCHMENT_BRIGHT}",
+            )
+        if kind == "win":
+            return (
+                "YOU WIN",
+                "",
+                f"The Orb is yours. {self.win_flavor_text()}",
+                f"SCORE {self.state.score}",
+                "[N] new run   [Q] quit",
+                POTION_GREEN,
+                f"bold {WIN_GREEN}",
+            )
+        return (
+            "YOU DIED",
+            "",
+            "The dungeon keeps its debt. Remaining monsters are counted against you.",
+            f"FINAL SCORE {self.state.score}",
+            "[N] new run   [Q] quit",
+            MONSTER_RED,
+            f"bold {MONSTER_RED}",
+        )
 
     def set_overlay(self, kind: str | None) -> None:
         if kind and kind != self.overlay:
@@ -343,14 +451,23 @@ class ScoundrelApp(App[None]):
         return self.overlay_flavors["win"]
 
     def overlay_image_size(self, image: Path) -> tuple[int, int]:
+        overlay_width, overlay_height = self.overlay_dimensions()
+        image_height = min(
+            OVERLAY_MAX_IMAGE_HEIGHT,
+            max(OVERLAY_MIN_IMAGE_HEIGHT, overlay_height - 14),
+        )
+        landscape_width = min(
+            OVERLAY_MAX_LANDSCAPE_IMAGE_WIDTH,
+            max(OVERLAY_MIN_LANDSCAPE_IMAGE_WIDTH, overlay_width - 26),
+        )
         try:
             with Image.open(image) as loaded:
                 width, height = loaded.size
         except OSError:
-            return 58, 16
+            return landscape_width, image_height
         if height > width:
-            return 24, 16
-        return 58, 16
+            return round(image_height * 1.6), image_height
+        return landscape_width, image_height
 
     def death_overlay_image(self) -> Path:
         return self.overlay_image("death")
@@ -403,7 +520,7 @@ class ScoundrelApp(App[None]):
         )
 
     def status_label(self, label: str) -> Text:
-        return Text(label, style="bold #8f8679", no_wrap=True, overflow="ellipsis")
+        return Text(label, style=f"bold {ASH_LABEL}", no_wrap=True, overflow="ellipsis")
 
     def status_value(self, value: str, value_style: str) -> Text:
         style = value_style if value_style.startswith("bold") else f"bold {value_style}"
@@ -420,13 +537,13 @@ class ScoundrelApp(App[None]):
     def strong_kill_row(self, slain: list[Card], *, suit: Suit, prefix: str = "") -> Text:
         symbols: list[tuple[str, str]] = []
         if prefix:
-            symbols.append((prefix, "bold #d8cdb9"))
+            symbols.append((prefix, f"bold {PARCHMENT_TEXT}"))
         slain_values = {card.value for card in slain if card.suit == suit}
         for value in (14, 13, 12, 11):
             card = Card(suit, value)
-            style = "strike bold #d9a15c" if value in slain_values else "bold #4b4540"
+            style = f"strike bold {DAMAGE_AMBER}" if value in slain_values else f"bold {INACTIVE_MARK}"
             symbols.append((self.elite_kill_symbol(card), style))
-        symbols.append((" ", "#4b4540"))
+        symbols.append((" ", INACTIVE_MARK))
         return Text.assemble(*symbols, no_wrap=True, overflow="ellipsis")
 
     def elite_kill_symbol(self, card: Card) -> str:
@@ -481,10 +598,10 @@ class ScoundrelApp(App[None]):
 
     def health_style(self, health: int) -> str:
         if health > 10:
-            return "#71d083"
+            return POTION_GREEN
         if health > 5:
             return "#f8b65a"
-        return "bold #f05d4f"
+        return f"bold {MONSTER_RED}"
 
     def health_bar(self, health: int, width: int = MAX_HEALTH) -> Text:
         current = max(0, min(MAX_HEALTH, health))
@@ -493,12 +610,12 @@ class ScoundrelApp(App[None]):
         for cell in range(width):
             index = min(MAX_HEALTH, (cell * MAX_HEALTH) // width + 1)
             if potion_target is not None and current < index <= potion_target:
-                bar.append("▌", style="bold #b8ff7a")
+                bar.append("▌", style=f"bold {POTION_PREVIEW_GREEN}")
             elif index <= current:
                 if bare_target is not None and self.health_index_starts_here(cell, bare_target + 1, width):
-                    bar.append("▏", style="bold #ffffff")
+                    bar.append("▏", style=f"bold {PARCHMENT_BRIGHT}")
                 elif default_target is not None and index > default_target:
-                    bar.append("▌", style="bold #ff7a1a")
+                    bar.append("▌", style=f"bold {DANGER_ORANGE}")
                 else:
                     bar.append("█", style=self.health_style(current))
             else:
@@ -565,23 +682,8 @@ class ScoundrelApp(App[None]):
         return Align.center(table, vertical="middle")
 
     def card_cell(self, index: int, card: Card | None) -> RenderableType:
-        panel = self.card_panel(index, card)
-        card_width, card_height, _, _ = self.card_dimensions()
         selected = index == self.state.selected_slot and card is not None
-        border = self.selection_border_style(card) if selected else "#070909"
-        title = " ◆ " if selected else ""
-        subtitle = "lethal" if selected and card and self.card_is_lethal(card) else ""
-        return Panel(
-            Align.center(panel, width=card_width + 2, height=card_height),
-            title=title,
-            subtitle=subtitle,
-            border_style=border,
-            box=box.SQUARE,
-            padding=(0, 0),
-            width=card_width + 4,
-            height=card_height + 2,
-            expand=True,
-        )
+        return self.card_panel(index, card, selected=selected)
 
     def card_dimensions(self) -> tuple[int, int, int, int]:
         fallback_width, fallback_height = self.estimated_room_size()
@@ -605,14 +707,14 @@ class ScoundrelApp(App[None]):
         outer_width = self.size.width - (SHELL_HORIZONTAL_MARGIN * 2)
         return max(96, outer_width - 2), max(26, self.size.height - 10)
 
-    def card_panel(self, index: int, card: Card | None) -> RenderableType:
+    def card_panel(self, index: int, card: Card | None, *, selected: bool = False) -> RenderableType:
         pending = index == self.state.pending_monster_slot
         card_width, card_height, image_width, image_height = self.card_dimensions()
         if card is None:
             body = self.fixed_card_body(
                 [
                     card_spacer(image_width, image_height),
-                    Align.center(Text("empty", style="#323232")),
+                    Align.center(Text("empty", style=DEAD_CELL)),
                 ],
                 card_width,
                 card_height,
@@ -621,7 +723,7 @@ class ScoundrelApp(App[None]):
                 body,
                 title=f" {index + 1} ",
                 subtitle=" ",
-                border_style="#2c3030",
+                border_style=EMPTY_BORDER,
                 box=box.SQUARE,
                 width=card_width,
                 height=card_height,
@@ -630,8 +732,8 @@ class ScoundrelApp(App[None]):
         path = asset_for(card, pixel=self.pixel_art)
         label = Text.assemble(
             (card.title, f"bold {self.kind_color(card)}"),
-            ("  ", "#71685c"),
-            (card.kind.upper(), "#71685c"),
+            ("  ", CARD_META),
+            (card.kind.upper(), CARD_META),
         )
         parts: list[RenderableType] = [
             label,
@@ -639,18 +741,18 @@ class ScoundrelApp(App[None]):
         parts.extend(
             [
                 card_art(card, path, width=image_width, height=image_height),
-                Align.center(Text(self.card_action_text(card), style="#c6b9a2")),
+                Align.center(self.card_action_text(card)),
             ]
         )
         body = self.fixed_card_body(parts, card_width, card_height)
-        border = self.card_border_style(card)
+        border = self.selection_border_style(card) if selected else self.card_border_style(card)
         if pending:
-            border = "#ffffff"
-        title = f" {index + 1} "
+            border = f"bold {PARCHMENT_BRIGHT}"
+        title = f" {index + 1} {'◆' if selected else ' '} "
         return Panel(
             body,
             title=title,
-            subtitle=self.slot_hint(card),
+            subtitle=self.slot_hint(card, selected=selected),
             border_style=border,
             box=box.SQUARE,
             width=card_width,
@@ -665,22 +767,22 @@ class ScoundrelApp(App[None]):
 
     def selection_border_style(self, card: Card | None) -> str:
         if card and self.card_is_lethal(card):
-            return "bold #ff3b30"
-        return "bold #f1e5c8"
+            return f"bold {LETHAL_RED}"
+        return f"bold {PARCHMENT_BRIGHT}"
 
     def monster_damage_style(self, card: Card) -> str:
         damage = self.default_card_damage(card)
         if damage <= 0:
-            return "#71d083"
+            return POTION_GREEN
         if damage >= self.state.health:
-            return "bold #ff3b30"
+            return f"bold {LETHAL_RED}"
         health = max(1, self.state.health)
         ratio = damage / health
         if ratio >= 0.5:
-            return "#ff7a1a"
+            return DANGER_ORANGE
         if ratio >= 0.25:
-            return "#d9a15c"
-        return "#b8a06d"
+            return DAMAGE_AMBER
+        return BRASS_BORDER
 
     def default_card_damage(self, card: Card) -> int:
         if card.kind != "Monster":
@@ -692,18 +794,44 @@ class ScoundrelApp(App[None]):
     def card_is_lethal(self, card: Card) -> bool:
         return card.kind == "Monster" and self.default_card_damage(card) >= self.state.health
 
-    def card_action_text(self, card: Card) -> str:
+    def card_action_text(self, card: Card) -> Text:
         if card.kind == "Potion":
             if self.state.used_potion:
-                return "discarded this room"
+                return Text("SPENT  one potion per room", style=ACTION_TEXT, no_wrap=True, overflow="ellipsis")
             healed = min(MAX_HEALTH - self.state.health, card.value)
-            return f"heal {healed}"
+            return Text.assemble(
+                ("HEAL ", f"bold {POTION_GREEN}"),
+                (f"+{healed}", f"bold {POTION_GREEN}"),
+                (f" / {card.value}", CARD_META),
+                no_wrap=True,
+                overflow="ellipsis",
+            )
         if card.kind == "Weapon":
-            return f"equip value {card.value}"
+            return Text.assemble(
+                ("EQUIP ", f"bold {WEAPON_BLUE}"),
+                (str(card.value), f"bold {WEAPON_FOCUS_BLUE}"),
+                no_wrap=True,
+                overflow="ellipsis",
+            )
         if self.state.can_use_weapon(card) and self.state.weapon:
             damage = max(0, card.value - self.state.weapon.value)
-            return f"monster damage {damage}"
-        return f"take {card.value} damage"
+            style = self.monster_damage_style(card)
+            return Text.assemble(
+                ("DMG ", style if style.startswith("bold") else f"bold {style}"),
+                (str(damage), style if style.startswith("bold") else f"bold {style}"),
+                ("  weapon", CARD_META),
+                no_wrap=True,
+                overflow="ellipsis",
+            )
+        style = self.monster_damage_style(card)
+        value_style = style if style.startswith("bold") else f"bold {style}"
+        return Text.assemble(
+            ("DMG ", value_style),
+            (str(card.value), value_style),
+            ("  bare", CARD_META),
+            no_wrap=True,
+            overflow="ellipsis",
+        )
 
     def fixed_card_body(self, parts: list[RenderableType], card_width: int, card_height: int) -> RenderableType:
         return Align.center(
@@ -715,12 +843,14 @@ class ScoundrelApp(App[None]):
 
     def kind_color(self, card: Card) -> str:
         if card.kind == "Monster":
-            return "#f05d4f"
+            return MONSTER_RED
         if card.kind == "Weapon":
-            return "#74b7e8"
-        return "#71d083"
+            return WEAPON_BLUE
+        return POTION_GREEN
 
-    def slot_hint(self, card: Card) -> str:
+    def slot_hint(self, card: Card, *, selected: bool = False) -> str:
+        if selected and self.card_is_lethal(card):
+            return "LETHAL"
         if card.kind == "Monster":
             if self.state.can_use_weapon(card):
                 return "W/B"
@@ -730,44 +860,48 @@ class ScoundrelApp(App[None]):
     def render_message(self) -> RenderableType:
         warning = self.selected_warning()
         if self.state.confirm_new_game:
-            text = Text("Press N again to abandon this run and start a new game.", style="bold #c9a86a")
+            text = Text("Press N again to abandon this run and start a new game.", style=f"bold {CONFIRM_TEXT}")
         elif self.state.confirm_quit:
-            text = Text("Press Q again to quit.", style="bold #c9a86a")
+            text = Text("Press Q again to quit.", style=f"bold {CONFIRM_TEXT}")
         elif self.state.game_over:
             result = "Escaped" if self.state.won else "Fell in the dungeon"
-            text = Text(f"{result}. Score {self.state.score}.", style="#c9a86a")
+            text = Text(f"{result}. Score {self.state.score}.", style=CONFIRM_TEXT)
         elif self.state.pending_monster_slot is not None:
             card = self.state.room[self.state.pending_monster_slot]
             assert card is not None
             damage = max(0, card.value - (self.state.weapon.value if self.state.weapon else 0))
-            text = Text(f"{card.title}: W uses weapon for {damage} damage, B fights bare for {card.value}.", style="bold #d8cdb9")
+            text = Text(
+                f"FIGHT {card.title}: W damage {damage}, B damage {card.value}. Esc cancels.",
+                style=f"bold {PARCHMENT_TEXT}",
+            )
         elif warning:
-            text = Text(warning, style="bold #d9695d")
+            text = Text(warning, style=f"bold {WARNING_RED}")
         elif self.state.log:
-            text = Text(self.state.log[-1], style="bold #9f9688")
+            text = Text(self.state.log[-1], style=f"bold {ASH_LOG}")
         else:
             text = Text("")
         return Align.center(text, vertical="middle")
 
     def render_footer(self) -> RenderableType:
         art = "pixel" if self.pixel_art else "portrait"
+        avoid = "open" if not self.state.avoided_last_room and self.state.turn_taken == 0 else "locked"
         shortcuts = Text.assemble(
-            ("[1-4]", "#9e8454"),
-            (" take   ", "#595959"),
-            ("[←/→]", "#9e8454"),
-            (" select   ", "#595959"),
-            ("[Enter]", "#9e8454"),
-            (" take selected   ", "#595959"),
-            ("[A]", "#9e8454"),
-            (" avoid   ", "#595959"),
-            ("[W/B]", "#9e8454"),
-            (" weapon/bare   ", "#595959"),
-            ("[P]", "#9e8454"),
-            (f" {art}   ", "#595959"),
-            ("[N]", "#9e8454"),
-            (" new   ", "#595959"),
-            ("[Q]", "#9e8454"),
-            (" quit", "#595959"),
+            ("[1-4]", COPPER_LABEL),
+            (" take   ", QUIET_TEXT),
+            ("[←/→]", COPPER_LABEL),
+            (" select   ", QUIET_TEXT),
+            ("[Enter]", COPPER_LABEL),
+            (" take   ", QUIET_TEXT),
+            ("[A]", COPPER_LABEL),
+            (f" avoid:{avoid}   ", QUIET_TEXT),
+            ("[W/B]", COPPER_LABEL),
+            (" weapon/bare   ", QUIET_TEXT),
+            ("[P]", COPPER_LABEL),
+            (f" {art}   ", QUIET_TEXT),
+            ("[N]", COPPER_LABEL),
+            (" new   ", QUIET_TEXT),
+            ("[Q]", COPPER_LABEL),
+            (" quit", QUIET_TEXT),
         )
         return Align.center(shortcuts, vertical="middle")
 
@@ -822,11 +956,14 @@ class ScoundrelApp(App[None]):
             damage = max(0, card.value - (self.state.weapon.value if self.state.weapon else 0))
             return Panel(
                 Group(
-                    Text(f"{card.title}: W uses weapon for {damage} damage, B fights bare for {card.value}.", style="bold #ffffff"),
+                    Text(
+                        f"{card.title}: W uses weapon for {damage} damage, B fights bare for {card.value}.",
+                        style=f"bold {PARCHMENT_BRIGHT}",
+                    ),
                     Text(""),
                     shortcut_hint,
                 ),
-                border_style="#ffffff",
+                border_style=PARCHMENT_BRIGHT,
                 title="HELP",
             )
         left = 3 - self.state.turn_taken
@@ -850,9 +987,9 @@ class ScoundrelApp(App[None]):
         damage = max(0, card.value - self.state.weapon.value) if default_uses_weapon and self.state.weapon else card.value
         if damage >= self.state.health:
             method = "with weapon" if default_uses_weapon else "barehanded"
-            return f"Warning: taking {card.title} {method} deals {damage} damage and will kill you."
+            return f"LETHAL {card.title}: {damage} damage {method}."
         if default_uses_weapon and card.value >= self.state.health:
-            return f"Barehanded warning: {card.title} deals {card.value} damage and will kill you."
+            return f"BAREHAND LETHAL {card.title}: {card.value} damage."
         return ""
 
     def render_log(self) -> RenderableType:
