@@ -180,9 +180,7 @@ class ScoundrelApp(App[None]):
 
     def on_resize(self, event: events.Resize) -> None:
         self.refresh_board()
-        self.refresh_overlay()
         self.call_after_refresh(self.refresh_board)
-        self.call_after_refresh(self.refresh_overlay)
 
     def action_toggle_pixel_art(self) -> None:
         self.state.confirm_new_game = False
